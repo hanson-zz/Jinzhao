@@ -30,6 +30,8 @@ jobs:
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Holidays"
           cp .build/release/Jinzhao "$APP/Contents/MacOS/Jinzhao"
           cp Jinzhao/Resources/Holidays/*.json "$APP/Contents/Resources/Holidays/"
+          # 应用图标（浅/深双外观）编译进 Assets.car
+          xcrun actool Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx --target-device mac --minimum-deployment-target 26.0 --app-icon AppIcon --output-partial-info-plist /tmp/assets-info.plist 2>&1 | tee -a build.log
           cat > "$APP/Contents/Info.plist" << 'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -40,6 +42,8 @@ jobs:
             <key>CFBundleIdentifier</key><string>app.jinzhao.dev</string>
             <key>CFBundleExecutable</key><string>Jinzhao</string>
             <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleIconFile</key><string>AppIcon</string>
+            <key>CFBundleIconName</key><string>AppIcon</string>
             <key>CFBundleShortVersionString</key><string>0.1.0</string>
             <key>CFBundleVersion</key><string>1</string>
             <key>LSMinimumSystemVersion</key><string>26.0</string>
