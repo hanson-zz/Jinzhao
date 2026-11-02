@@ -16,11 +16,11 @@ struct LunarInfo: Equatable {
 
     var dayText: String { LunarCalendar.dayNames.indices.contains(day - 1) ? LunarCalendar.dayNames[day - 1] : "" }
 
-    /// 「八月廿八」
+    /// 「八月廿八」（注意带「月」字，旧版漏掉显示成「八廿八」）
     var shortText: String {
         let names = ["正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "冬", "腊"]
         guard (1...12).contains(month) else { return dayText }
-        return (isLeapMonth ? "闰" : "") + names[month - 1] + dayText
+        return (isLeapMonth ? "闰" : "") + names[month - 1] + "月" + dayText
     }
 }
 

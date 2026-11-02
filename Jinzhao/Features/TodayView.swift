@@ -4,6 +4,7 @@ import SwiftUI
 struct TodayView: View {
     let date: Date
     @EnvironmentObject private var store: DataStore
+    @EnvironmentObject private var calendar: CalendarService
     @Environment(\.holidayService) private var holidays
     @State private var mode: Mode = .list
 
@@ -26,6 +27,7 @@ struct TodayView: View {
                     greetingLine
                     dateStrip
                     workdayAlert
+                    calendarBanner
                     HStack(alignment: .top, spacing: 16) {
                         todayList.frame(maxWidth: .infinity)
                         VStack(spacing: 16) {
@@ -46,21 +48,34 @@ struct TodayView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(headerTitle)
-                    .font(.system(size: 27, weight: .bold))
+                    .font(.jzDisplay)
                 let lunar = LunarCalendar.info(for: date)
                 let term = SolarTermTable.term(on: date) ?? SolarTermTable.currentTerm(on: date) ?? ""
                 Text("农历\(lunar.shortText) · \(term) · \(lunar.ganzhiYear)\(lunar.zodiac)年")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Spacer()
-            Picker("", selection: $mode) {
+            // 分段控件：玻璃底 + 白字，不用饱和蓝（全页蓝色焦点只留给日期条「今天」）
+            HStack(spacing: 2) {
                 ForEach(Mode.allCases, id: \.self) { m in
-                    Text(m == .board ? "看板 🔒" : m.rawValue).tag(m) // 看板是 Pro，先做锁定入口（定版决策）
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) { mode = m }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(m.rawValue)
+                            if m == .board { // 看板是 Pro，先做锁定入口（定版决策）
+                                Image(systemName: "lock.fill").font(.system(size: 9))
+                            }
+                        }
+                        .font(.jzBody)
+                        .padding(.horizontal, 12).padding(.vertical, 5)
+                        .background(mode == m ? JZ.hoverFill : Color.clear, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .pickerStyle(.segmented).frame(width: 210)
-            Button { } label: { Text("+ 新建") }
-                .buttonStyle(.borderedProminent)
+            .padding(2)
+            .background(JZ.controlFill, in: Capsule())
         }
     }
 
@@ -74,8 +89,8 @@ struct TodayView: View {
             if isFirstWorkdayAfterHoliday {
                 Text("假期结束第一天，今天").foregroundStyle(.secondary)
             }
-            if !store.events.isEmpty {
-                Label("\(store.events.count) 个日程", systemImage: "circle.fill").font(.callout)
+            if !calendar.events.isEmpty {
+                Label("\(calendar.events.count) 个日程", systemImage: "circle.fill").font(.callout)
             }
             Label("\(store.habits.count) 个习惯", systemImage: "repeat").font(.callout)
             if important > 0 {
@@ -128,7 +143,7 @@ struct TodayView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
-                .background(isToday ? Color.blue : Color.white.opacity(0.07),
+                .background(isToday ? JZ.accent : JZ.controlFill,
                             in: RoundedRectangle(cornerRadius: 13))
             }
         }
@@ -190,85 +205,152 @@ struct TodayView: View {
     }
 
     private var todayList: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("今天 日程与任务 · \(store.events.filter { isToday($0.start) }.count + displayTasks.count)")
-                .font(.subheadline.weight(.semibold)).padding(.bottom, 6)
-            if store.events.filter({ isToday($0.start) }).isEmpty && displayTasks.isEmpty {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("今天 日程与任务 · \(calendar.events.filter { isToday($0.start) }.count + displayTasks.count)")
+                .font(.jzSection).padding(.bottom, 6)
+            if calendar.events.filter({ isToday($0.start) }).isEmpty && displayTasks.isEmpty {
                 Text("今天还没有安排。去「任务」页加几件今天要做的事，或者先在右栏随手记一笔。")
                     .font(.callout).foregroundStyle(.secondary)
                     .padding(.vertical, 10)
             }
-            ForEach(store.events.filter { isToday($0.start) }) { event in
+            // 无分隔线（定版规范），靠行距与 hover 高亮区分
+            ForEach(calendar.events.filter { isToday($0.start) }) { event in
                 eventRow(event)
-                Divider().opacity(0.4)
             }
             ForEach(displayTasks) { task in
                 taskRow(task)
-                Divider().opacity(0.4)
+            }
+            if !displayTasks.isEmpty && displayTasks.count + calendar.events.filter({ isToday($0.start) }).count < 3 {
+                // 内容少时给一个轻量提示，填住左下空白
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles").foregroundStyle(.secondary)
+                    Text("今天安排不多。用右上角「新建」把剩下的时间也安排上吧。")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous))
+                .padding(.top, 8)
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: store.tasks)
     }
 
     private func isToday(_ d: Date) -> Bool { cal.isDate(d, inSameDayAs: date) }
 
+    @Environment(\.openURL) private var openURL
+
+    /// 日历未授权时的连接引导（授权后自动消失）
+    @ViewBuilder private var calendarBanner: some View {
+        if calendar.authState == .notDetermined {
+            HStack(spacing: 8) {
+                Image(systemName: "calendar.badge.plus").foregroundStyle(.blue)
+                Text("连接苹果日历后，你的日程会出现在这里，带会议链接的还能一键入会。")
+                    .font(.callout)
+                Spacer()
+                Button("连接日历") { Task { await calendar.requestAccess() } }
+                    .glassButton().controlSize(.small)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .background(Color.blue.opacity(0.13), in: RoundedRectangle(cornerRadius: 11))
+        } else if calendar.authState == .denied {
+            HStack(spacing: 8) {
+                Image(systemName: "calendar.badge.exclamationmark").foregroundStyle(.orange)
+                Text("日历权限被拒绝了，去系统设置里给今朝打开就能看到日程。")
+                    .font(.callout)
+                Spacer()
+                Button("打开系统设置") { calendar.openPrivacySettings() }
+                    .glassButton().controlSize(.small)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .background(Color.orange.opacity(0.13), in: RoundedRectangle(cornerRadius: 11))
+        }
+    }
+
     private func eventRow(_ e: CalendarEventItem) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
-                Text(e.start, style: .time).font(.callout.weight(.semibold))
-                Text(e.end, style: .time).font(.caption).foregroundStyle(.secondary)
+                if e.isAllDay {
+                    Text("全天").font(.callout.weight(.semibold))
+                } else {
+                    Text(e.start, style: .time).font(.callout.weight(.semibold))
+                    Text(e.end, style: .time).font(.caption).foregroundStyle(.secondary)
+                }
             }
             .frame(width: 44, alignment: .leading)
             Rectangle().fill(color(e.colorName)).frame(width: 3).clipShape(Capsule())
             VStack(alignment: .leading, spacing: 3) {
                 Text(e.title).fontWeight(.medium).lineLimit(2)
                 if let loc = e.location {
-                    Text("📍 \(loc)").font(.caption).foregroundStyle(.secondary)
+                    Label(loc, systemImage: "mappin.and.ellipse")
+                        .font(.caption).foregroundStyle(.secondary)
                 } else if let p = e.meetingProvider {
-                    Text("\(p)会议").font(.caption).foregroundStyle(.secondary)
+                    Label("\(p)会议", systemImage: "video")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer()
-            if e.meetingProvider != nil {
-                Button("加入会议") { }.buttonStyle(.bordered).controlSize(.small)
+            if let url = e.meetingURL {
+                Button("加入会议") { openURL(url) }.glassButton().controlSize(.small)
             }
         }
         .padding(.vertical, 7)
+        .padding(.horizontal, 6)
+        .hoverHighlight()
+    }
+
+    /// 勾选圈按优先级上色：已完成绿 / 重要红 / 已过期橙 / 普通灰
+    private func checkColor(_ t: TaskItem) -> Color {
+        if t.isDone { return JZ.success }
+        if t.isImportant { return JZ.danger }
+        if let due = t.dueDate, due < Date() { return JZ.warm }
+        return .secondary
     }
 
     private func taskRow(_ t: TaskItem) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Button { store.toggleTask(t) } label: {
+        // 紧凑两行（对 Woday 结构）：标题一行，时间与标签胶囊一行；勾选圈贴着文字
+        HStack(alignment: .top, spacing: 8) {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) { store.toggleTask(t) }
+            } label: {
                 Image(systemName: t.isDone ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(t.isDone ? .green : .secondary)
+                    .foregroundStyle(checkColor(t))
+                    .font(.system(size: 16))
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
-            .frame(width: 44)
+            .padding(.top, 1)
             VStack(alignment: .leading, spacing: 3) {
                 Text(t.title)
-                    .fontWeight(.medium)
+                    .font(.jzBody.weight(.medium))
                     .strikethrough(t.isDone)
                     .foregroundStyle(t.isDone ? .secondary : .primary)
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     if t.isImportant {
-                        Label("重要", systemImage: "flag.fill").font(.caption).foregroundStyle(.red)
+                        Label("重要", systemImage: "flag.fill").font(.jzCaption).foregroundStyle(JZ.danger)
                     }
                     if !t.subtasks.isEmpty {
-                        Text("子任务 \(t.subtasks.filter { $0.isDone }.count)/\(t.subtasks.count)").font(.caption).foregroundStyle(.secondary)
+                        Label("子任务 \(t.subtasks.filter { $0.isDone }.count)/\(t.subtasks.count)", systemImage: "checklist")
+                            .font(.jzCaption).foregroundStyle(.secondary)
                     }
                     if let due = t.dueDate {
-                        Text("截止 \(due, style: .time)").font(.caption).foregroundStyle(.secondary)
+                        Label("截止 \(due, style: .time)", systemImage: "clock")
+                            .font(.jzCaption).foregroundStyle(.secondary)
                     }
                     if let done = t.doneAt {
-                        Text("\(done, style: .time) 完成").font(.caption).foregroundStyle(.secondary)
+                        Label("\(done, style: .time) 完成", systemImage: "checkmark")
+                            .font(.jzCaption).foregroundStyle(.secondary)
                     }
                     if let folder = t.folderName {
-                        Text(folder).font(.caption).foregroundStyle(.secondary)
+                        CapsuleTag(text: folder)
                     }
                 }
             }
             Spacer()
         }
-        .padding(.vertical, 7)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .hoverHighlight()
     }
 
     private func color(_ name: String) -> Color {
@@ -276,6 +358,9 @@ struct TodayView: View {
         case "orange": return .orange
         case "green": return .green
         case "purple": return .purple
+        case "red": return .red
+        case "pink": return .pink
+        case "yellow": return .yellow
         default: return .blue
         }
     }
@@ -301,24 +386,25 @@ struct TodayView: View {
             HStack(spacing: 10) {
                 ForEach(store.habits) { habit in
                     VStack(spacing: 6) {
+                        // 统一圆环：未完成是轨道+进度弧，完成是满环变绿+对勾，不再跳实心圆
                         ZStack {
+                            Circle().stroke(JZ.controlFill, lineWidth: 5)
+                            Circle().trim(from: 0, to: habit.isComplete ? 1 : habit.fraction)
+                                .stroke(habit.isComplete ? JZ.success : JZ.teal,
+                                        style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
                             if habit.isComplete {
-                                Circle().fill(.green)
-                                Image(systemName: "checkmark").foregroundStyle(.white).fontWeight(.bold)
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(JZ.success).fontWeight(.bold)
                             } else if let time = habit.scheduledTime {
-                                Circle().stroke(.white.opacity(0.15), lineWidth: 5)
-                                Text(time).font(.system(size: 13, weight: .semibold))
+                                Text(time).font(.system(size: 12, weight: .semibold))
                             } else {
-                                Circle().trim(from: 0, to: habit.fraction)
-                                    .stroke(.blue, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                                    .rotationEffect(.degrees(-90))
-                                Circle().stroke(.white.opacity(0.12), lineWidth: 5)
-                                    .zIndex(-1)
                                 Text("\(Int(habit.todayProgress))/\(Int(habit.targetPerDay))")
                                     .font(.system(size: 13, weight: .semibold))
                             }
                         }
                         .frame(width: 52, height: 52)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: habit.todayProgress)
                         Text(habit.name).font(.caption)
                         Text(habit.isComplete ? "已完成" : habitDetail(habit))
                             .font(.caption2).foregroundStyle(.secondary)
@@ -340,12 +426,20 @@ struct TodayView: View {
             }
         }
         .padding(14)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 15))
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
     }
 
     private func habitDetail(_ h: HabitItem) -> String {
         if let _ = h.scheduledTime { return "今晚" }
         return "还差 \(Int(h.targetPerDay - h.todayProgress)) \(h.unit)"
+    }
+
+    /// 明天卡只显示「明天到期」的任务（旧版拿任意未完成任务充数，导致今天的任务在明天卡里重复出现）
+    private func tomorrowTasks(_ tomorrow: Date) -> [TaskItem] {
+        store.tasks.filter { t in
+            guard let due = t.dueDate, !t.isDone else { return false }
+            return cal.isDate(due, inSameDayAs: tomorrow)
+        }
     }
 
     private var tomorrowCard: some View {
@@ -357,11 +451,11 @@ struct TodayView: View {
                 Spacer()
                 Text("农历\(lunar.shortText)").font(.caption).foregroundStyle(.secondary)
             }
-            if store.events.filter({ cal.isDate($0.start, inSameDayAs: tomorrow) }).isEmpty
-                && store.tasks.filter({ !$0.isDone }).isEmpty {
+            if calendar.events.filter({ cal.isDate($0.start, inSameDayAs: tomorrow) }).isEmpty
+                && tomorrowTasks(tomorrow).isEmpty {
                 Text("明天暂无安排").font(.callout).foregroundStyle(.secondary)
             }
-            ForEach(store.events.filter { cal.isDate($0.start, inSameDayAs: tomorrow) }) { e in
+            ForEach(calendar.events.filter { cal.isDate($0.start, inSameDayAs: tomorrow) }) { e in
                 HStack(spacing: 8) {
                     Text(e.start, style: .time).font(.callout.weight(.medium))
                     Text(e.title).font(.callout)
@@ -370,7 +464,7 @@ struct TodayView: View {
                     Text(loc).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            ForEach(store.tasks.filter { !$0.isDone }.prefix(1)) { t in
+            ForEach(tomorrowTasks(tomorrow)) { t in
                 HStack(spacing: 8) {
                     Image(systemName: "circle").foregroundStyle(.secondary)
                     Text(t.title).font(.callout)
@@ -381,6 +475,6 @@ struct TodayView: View {
             }
         }
         .padding(14)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 15))
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
     }
 }

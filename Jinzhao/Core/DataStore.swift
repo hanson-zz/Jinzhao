@@ -7,8 +7,7 @@ final class DataStore: ObservableObject {
     @Published var tasks: [TaskItem] = [] { didSet { save() } }
     @Published var habits: [HabitItem] = [] { didSet { save() } }
     @Published var inbox: [InboxItem] = [] { didSet { save() } }
-    /// 日程（下一片接 EventKit 读写苹果日历）
-    @Published var events: [CalendarEventItem] = []
+    // 日程不在这里：由 CalendarService 实时读苹果日历
 
     private let fileURL: URL
     private var isLoading = false
@@ -42,10 +41,17 @@ final class DataStore: ObservableObject {
         inbox = p.inbox
         habitDay = p.habitDay
         isLoading = false
-        // 跨天：今日进度清零（连续天数保留，后续接打卡历史再精确计算）
+        // 跨天：今日进度清零；连续天数校验（最后完成日既不是今天也不是昨天 → 断签归零）
         if habitDay != DataStore.todayKey() {
-            for i in habits.indices { habits[i].todayProgress = 0 }
-            habitDay = DataStore.todayKey()
+            let today = DataStore.todayKey()
+            let yesterday = DataStore.dayKey(offsetDays: -1)
+            for i in habits.indices {
+                habits[i].todayProgress = 0
+                if let last = habits[i].lastDoneDay, last != today, last != yesterday {
+                    habits[i].streakDays = 0
+                }
+            }
+            habitDay = today
         }
     }
 
@@ -56,8 +62,11 @@ final class DataStore: ObservableObject {
         try? data.write(to: fileURL, options: .atomic)
     }
 
-    private static func todayKey() -> String {
-        let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
+    private static func todayKey() -> String { dayKey(offsetDays: 0) }
+
+    static func dayKey(offsetDays: Int) -> String {
+        let date = Calendar(identifier: .gregorian).date(byAdding: .day, value: offsetDays, to: Date()) ?? Date()
+        let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
@@ -98,13 +107,24 @@ final class DataStore: ObservableObject {
 
     // MARK: - 习惯操作
 
-    /// 点一下进度 +1（喝水这类计数习惯）；已满则回到 0，方便纠正
+    /// 点一下进度 +1（喝水这类计数习惯）；已满则回到 0，方便纠正。
+    /// 完成瞬间更新连续天数：昨天完成了则 +1，否则从 1 重新开始；撤销完成则回退。
     func advanceHabit(_ habit: HabitItem) {
         guard let i = habits.firstIndex(where: { $0.id == habit.id }) else { return }
+        let today = DataStore.todayKey()
+        let yesterday = DataStore.dayKey(offsetDays: -1)
         if habits[i].todayProgress >= habits[i].targetPerDay {
             habits[i].todayProgress = 0
+            if habits[i].lastDoneDay == today {
+                habits[i].streakDays = max(0, habits[i].streakDays - 1)
+                habits[i].lastDoneDay = habits[i].streakDays > 0 ? yesterday : nil
+            }
         } else {
             habits[i].todayProgress += 1
+            if habits[i].todayProgress >= habits[i].targetPerDay, habits[i].lastDoneDay != today {
+                habits[i].streakDays = (habits[i].lastDoneDay == yesterday) ? habits[i].streakDays + 1 : 1
+                habits[i].lastDoneDay = today
+            }
         }
     }
 

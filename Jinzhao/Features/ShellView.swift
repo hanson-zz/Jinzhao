@@ -4,6 +4,7 @@ import SwiftUI
 struct ShellView: View {
     let today: Date
     @State private var selection: Section = .today
+    @State private var searchText = ""
 
     enum Section: String, CaseIterable {
         case today = "今天"
@@ -28,22 +29,54 @@ struct ShellView: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: JZ.spaceM) {
             SidebarView(selection: $selection)
                 .frame(width: 208)
             center
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity)
             InboxRailView(today: today)
                 .frame(width: 272)
         }
-        .padding(14)
+        .padding(JZ.spaceM)
         .background(WindowBackdrop())
+        .animation(.easeInOut(duration: 0.18), value: selection)
+        .toolbar {
+            // 搜索框挪到工具栏（原在侧边栏里）
+            ToolbarItem(placement: .navigation) {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("搜索或新建", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .frame(width: 170)
+                        .onSubmit { selection = .tasks }
+                    Text("⌘K").font(.jzCaption).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(JZ.controlFill, in: Capsule())
+            }
+            // 新建按钮挪到工具栏：玻璃样式，不抢日期条「今天」的蓝色焦点
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button("新建任务") { selection = .tasks }
+                    Button("新建日程") { selection = .calendar }
+                    Button("去收件箱随手记") { selection = .today }
+                } label: {
+                    Label("新建", systemImage: "plus")
+                }
+                .glassButton()
+            }
+        }
     }
 
     @ViewBuilder private var center: some View {
         switch selection {
         case .today:
             TodayView(date: today)
+        case .upcoming:
+            UpcomingView()
+        case .calendar:
+            CalendarView()
         case .tasks:
             TasksView()
         default:
@@ -66,16 +99,22 @@ struct WindowBackdrop: View {
     }
 }
 
-/// 玻璃卡片容器：macOS 26 用原生液态玻璃，视觉与效果图一致
+/// 玻璃卡片容器：macOS 26 用原生液态玻璃（有折射和高光），旧系统回退毛玻璃材质
 struct GlassCard<Content: View>: View {
-    var cornerRadius: CGFloat = 18
+    var cornerRadius: CGFloat = JZ.radiusL
     @ViewBuilder var content: Content
-    var body: some View {
-        content
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(.white.opacity(0.14), lineWidth: 1)
-            )
+
+    @ViewBuilder var body: some View {
+        if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            content
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                )
+        }
     }
 }

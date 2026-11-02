@@ -3,10 +3,11 @@ import SwiftUI
 struct SidebarView: View {
     @Binding var selection: ShellView.Section
     @EnvironmentObject private var store: DataStore
+    @EnvironmentObject private var calendar: CalendarService
 
     private func count(for section: ShellView.Section) -> Int? {
         switch section {
-        case .today: return store.events.count + store.tasks.filter { !$0.isDone }.count
+        case .today: return calendar.events(on: Date()).count + store.tasks.filter { !$0.isDone }.count
         case .tasks: return store.tasks.filter { !$0.isDone }.count
         case .inbox: return store.inbox.count
         default: return nil
@@ -37,17 +38,7 @@ struct SidebarView: View {
                 }
                 .padding(.bottom, 8)
 
-                // ⌘K 搜索/新建
-                HStack {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    Text("搜索或新建").foregroundStyle(.secondary)
-                    Spacer()
-                    Text("⌘K").font(.caption).foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 10).padding(.vertical, 7)
-                .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
-                .padding(.bottom, 10)
-
+                // 搜索/新建已挪到窗口工具栏（定版设计规范）
                 ForEach(ShellView.Section.allCases, id: \.self) { section in
                     Button { selection = section } label: {
                         HStack {

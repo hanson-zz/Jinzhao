@@ -38,7 +38,6 @@ struct TasksView: View {
                         sectionTitle("待办 · \(openTasks.count)")
                         ForEach(openTasks) { task in
                             taskRow(task)
-                            Divider().opacity(0.35)
                         }
                     }
                     if !doneTasks.isEmpty {
@@ -46,7 +45,6 @@ struct TasksView: View {
                             .padding(.top, 6)
                         ForEach(doneTasks) { task in
                             taskRow(task)
-                            Divider().opacity(0.35)
                         }
                     }
                 }
@@ -110,10 +108,13 @@ struct TasksView: View {
     private func taskRow(_ task: TaskItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 10) {
-                Button { store.toggleTask(task) } label: {
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) { store.toggleTask(task) }
+                } label: {
                     Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(task.isDone ? .green : .secondary)
+                        .foregroundStyle(checkColor(task))
                         .font(.system(size: 17))
+                        .contentTransition(.symbolEffect(.replace))
                 }
                 .buttonStyle(.plain)
 
@@ -133,7 +134,7 @@ struct TasksView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         if let folder = task.folderName {
-                            Text(folder).font(.caption).foregroundStyle(.secondary)
+                            CapsuleTag(text: folder)
                         }
                     }
                 }
@@ -191,9 +192,19 @@ struct TasksView: View {
             }
         }
         .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .hoverHighlight()
         .contextMenu {
             Button("删除任务", role: .destructive) { store.deleteTask(task) }
         }
+    }
+
+    /// 勾选圈按优先级上色：已完成绿 / 重要红 / 已过期橙 / 普通灰
+    private func checkColor(_ task: TaskItem) -> Color {
+        if task.isDone { return JZ.success }
+        if task.isImportant { return JZ.danger }
+        if isOverdue(task) { return JZ.warm }
+        return .secondary
     }
 
     private func isOverdue(_ task: TaskItem) -> Bool {
