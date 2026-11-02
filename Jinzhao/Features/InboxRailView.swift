@@ -3,7 +3,7 @@ import SwiftUI
 /// 右栏（常驻）：收件箱 + 下一个假期卡
 struct InboxRailView: View {
     let today: Date
-    @EnvironmentObject private var store: DemoStore
+    @EnvironmentObject private var store: DataStore
     @Environment(\.holidayService) private var holidays
     @State private var draft = ""
 
@@ -35,6 +35,10 @@ struct InboxRailView: View {
             HStack {
                 TextField("随手记一笔…", text: $draft)
                     .textFieldStyle(.plain)
+                    .onSubmit {
+                        store.addInbox(text: draft)
+                        draft = ""
+                    }
                 Text("⌘N").font(.caption).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
@@ -54,11 +58,18 @@ struct InboxRailView: View {
                     Text(relativeText(item.createdAt)).font(.caption2).foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 3)
+                .contextMenu {
+                    Button("删除", role: .destructive) { store.deleteInbox(item) }
+                }
             }
         }
     }
 
     private func relativeText(_ d: Date) -> String {
+        if cal.isDateInToday(d) {
+            let f = DateFormatter(); f.dateFormat = "HH:mm"
+            return "今天 \(f.string(from: d))"
+        }
         if cal.isDateInYesterday(d) {
             let f = DateFormatter(); f.dateFormat = "HH:mm"
             return "昨天 \(f.string(from: d))"

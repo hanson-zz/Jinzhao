@@ -2,17 +2,25 @@ import SwiftUI
 
 struct SidebarView: View {
     @Binding var selection: ShellView.Section
-    @EnvironmentObject private var store: DemoStore
+    @EnvironmentObject private var store: DataStore
 
     private func count(for section: ShellView.Section) -> Int? {
         switch section {
         case .today: return store.events.count + store.tasks.filter { !$0.isDone }.count
-        case .upcoming: return 14
-        case .tasks: return store.tasks.count * 5 + 3 // 演示数，正式版由存储统计
+        case .tasks: return store.tasks.filter { !$0.isDone }.count
         case .inbox: return store.inbox.count
         default: return nil
         }
     }
+
+    /// 文件夹按任务实际归属统计（没有文件夹的任务不显示）
+    private var folderCounts: [(name: String, count: Int)] {
+        let grouped = Dictionary(grouping: store.tasks.compactMap { $0.folderName }) { $0 }
+        return grouped.map { (name: $0.key, count: $0.value.count) }
+            .sorted { $0.name < $1.name }
+    }
+
+    private let folderColors: [Color] = [.green, .pink, .purple, .blue, .orange]
 
     var body: some View {
         GlassCard {
@@ -58,17 +66,12 @@ struct SidebarView: View {
                     .buttonStyle(.plain)
                 }
 
-                Text("收藏").font(.caption).foregroundStyle(.secondary).padding(.top, 14)
-                Label("Q4 客户拜访", systemImage: "circle.fill")
-                    .labelStyle(.titleAndIcon).font(.callout)
-                    .foregroundStyle(.primary, .yellow)
-                Label("新品试吃会", systemImage: "circle.fill")
-                    .font(.callout).foregroundStyle(.primary, .blue)
-
-                Text("文件夹").font(.caption).foregroundStyle(.secondary).padding(.top, 12)
-                folderRow("工作", .green, 12)
-                folderRow("生活", .pink, 7)
-                folderRow("读书笔记", .purple, 5)
+                if !folderCounts.isEmpty {
+                    Text("文件夹").font(.caption).foregroundStyle(.secondary).padding(.top, 14)
+                    ForEach(Array(folderCounts.enumerated()), id: \.offset) { i, folder in
+                        folderRow(folder.name, folderColors[i % folderColors.count], folder.count)
+                    }
+                }
 
                 Spacer()
 

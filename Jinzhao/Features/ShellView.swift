@@ -31,13 +31,24 @@ struct ShellView: View {
         HStack(spacing: 14) {
             SidebarView(selection: $selection)
                 .frame(width: 208)
-            TodayView(date: today)
+            center
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             InboxRailView(today: today)
                 .frame(width: 272)
         }
         .padding(14)
         .background(WindowBackdrop())
+    }
+
+    @ViewBuilder private var center: some View {
+        switch selection {
+        case .today:
+            TodayView(date: today)
+        case .tasks:
+            TasksView()
+        default:
+            PlaceholderView(section: selection)
+        }
     }
 }
 

@@ -2,12 +2,12 @@ import SwiftUI
 
 @main
 struct JinzhaoApp: App {
-    @StateObject private var store = DemoStore()
+    @StateObject private var store = DataStore()
     private let holidays = HolidayService()
 
     var body: some Scene {
         WindowGroup {
-            ShellView(today: DemoStore.referenceDate) // 正式版改为 Date()
+            ShellView(today: Date())
                 .environmentObject(store)
                 .environment(\.holidayService, holidays)
                 .frame(minWidth: 1180, minHeight: 740)

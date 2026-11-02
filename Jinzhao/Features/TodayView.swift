@@ -3,7 +3,7 @@ import SwiftUI
 /// 今天页（照效果图）：日期条 → 问候汇总 → 调休提醒条 → 日程任务混排 + 习惯/笔记/明天
 struct TodayView: View {
     let date: Date
-    @EnvironmentObject private var store: DemoStore
+    @EnvironmentObject private var store: DataStore
     @Environment(\.holidayService) private var holidays
     @State private var mode: Mode = .list
 
@@ -30,10 +30,9 @@ struct TodayView: View {
                         todayList.frame(maxWidth: .infinity)
                         VStack(spacing: 16) {
                             habitsCard
-                            noteCard
                             tomorrowCard
                         }
-                        .frame(width: 300)
+                        .frame(width: 288)
                     }
                 }
                 .padding(20)
@@ -75,7 +74,9 @@ struct TodayView: View {
             if isFirstWorkdayAfterHoliday {
                 Text("假期结束第一天，今天").foregroundStyle(.secondary)
             }
-            Label("\(store.events.count) 个日程", systemImage: "circle.fill").font(.callout)
+            if !store.events.isEmpty {
+                Label("\(store.events.count) 个日程", systemImage: "circle.fill").font(.callout)
+            }
             Label("\(store.habits.count) 个习惯", systemImage: "repeat").font(.callout)
             if important > 0 {
                 Label("\(important) 件重要", systemImage: "flag.fill").font(.callout).foregroundStyle(.red)
@@ -178,15 +179,30 @@ struct TodayView: View {
 
     // MARK: 今日混排列表
 
+    /// 今天页显示的任务：未完成且（无截止 / 已到期 / 今天到期） + 今天完成的
+    private var displayTasks: [TaskItem] {
+        let endOfToday = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: date))!
+        let open = store.tasks.filter { !$0.isDone && ($0.dueDate == nil || $0.dueDate! < endOfToday) }
+        let doneToday = store.tasks.filter { t in
+            t.isDone && (t.doneAt.map { cal.isDate($0, inSameDayAs: date) } ?? false)
+        }
+        return open + doneToday
+    }
+
     private var todayList: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("今天 日程与任务 · \(store.events.filter { isToday($0.start) }.count + store.tasks.filter { !$0.isDone }.count + 1)")
+            Text("今天 日程与任务 · \(store.events.filter { isToday($0.start) }.count + displayTasks.count)")
                 .font(.subheadline.weight(.semibold)).padding(.bottom, 6)
+            if store.events.filter({ isToday($0.start) }).isEmpty && displayTasks.isEmpty {
+                Text("今天还没有安排。去「任务」页加几件今天要做的事，或者先在右栏随手记一笔。")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .padding(.vertical, 10)
+            }
             ForEach(store.events.filter { isToday($0.start) }) { event in
                 eventRow(event)
                 Divider().opacity(0.4)
             }
-            ForEach(store.tasks) { task in
+            ForEach(displayTasks) { task in
                 taskRow(task)
                 Divider().opacity(0.4)
             }
@@ -204,7 +220,7 @@ struct TodayView: View {
             .frame(width: 44, alignment: .leading)
             Rectangle().fill(color(e.colorName)).frame(width: 3).clipShape(Capsule())
             VStack(alignment: .leading, spacing: 3) {
-                Text(e.title).fontWeight(.medium)
+                Text(e.title).fontWeight(.medium).lineLimit(2)
                 if let loc = e.location {
                     Text("📍 \(loc)").font(.caption).foregroundStyle(.secondary)
                 } else if let p = e.meetingProvider {
@@ -221,9 +237,12 @@ struct TodayView: View {
 
     private func taskRow(_ t: TaskItem) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: t.isDone ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(t.isDone ? .green : .secondary)
-                .frame(width: 44)
+            Button { store.toggleTask(t) } label: {
+                Image(systemName: t.isDone ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(t.isDone ? .green : .secondary)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 44)
             VStack(alignment: .leading, spacing: 3) {
                 Text(t.title)
                     .fontWeight(.medium)
@@ -263,13 +282,21 @@ struct TodayView: View {
 
     // MARK: 右列卡片
 
+    @State private var newHabitName = ""
+
     private var habitsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("今日习惯").font(.subheadline.weight(.semibold))
                 Spacer()
-                Text("连续打卡 \(store.habits.map { $0.streakDays }.max() ?? 0) 天")
-                    .font(.caption).foregroundStyle(.secondary)
+                if !store.habits.isEmpty {
+                    Text("连续打卡 \(store.habits.map { $0.streakDays }.max() ?? 0) 天")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if store.habits.isEmpty {
+                Text("还没有习惯。加一个从今天开始坚持的小事，比如「喝水」。")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             HStack(spacing: 10) {
                 ForEach(store.habits) { habit in
@@ -297,7 +324,19 @@ struct TodayView: View {
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                    .onTapGesture { store.advanceHabit(habit) }
+                    .help("点一下打卡 +1，满了再点清零")
                 }
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "plus").font(.caption).foregroundStyle(.secondary)
+                TextField("添加习惯，回车保存", text: $newHabitName)
+                    .textFieldStyle(.plain).font(.callout)
+                    .onSubmit {
+                        store.addHabit(name: newHabitName)
+                        newHabitName = ""
+                    }
             }
         }
         .padding(14)
@@ -309,30 +348,6 @@ struct TodayView: View {
         return "还差 \(Int(h.targetPerDay - h.todayProgress)) \(h.unit)"
     }
 
-    private var noteCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("拜访记录 · 麦香烘焙坊", systemImage: "doc.text").font(.subheadline.weight(.semibold))
-                Spacer()
-                Text("笔记").font(.caption).foregroundStyle(.secondary)
-            }
-            Text("老板说中秋月饼卖得比预期好，想把下季度淡奶油用量提到每月 40 箱，年前要一批年货礼盒用的黄油……")
-                .font(.callout).foregroundStyle(.secondary)
-                .lineLimit(3)
-            HStack(spacing: 8) {
-                Image(systemName: "circle").foregroundStyle(.secondary)
-                Text("下周一前发淡奶油阶梯报价").font(.callout)
-                Spacer()
-                Text("已转任务").font(.caption).foregroundStyle(.secondary)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(.white.opacity(0.10), in: Capsule())
-            }
-            // 注：按定版决策，v1 不放 AI 摘要（不依赖 Apple Intelligence，国行不可用）
-        }
-        .padding(14)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 15))
-    }
-
     private var tomorrowCard: some View {
         let tomorrow = cal.date(byAdding: .day, value: 1, to: date)!
         let lunar = LunarCalendar.info(for: tomorrow)
@@ -341,6 +356,10 @@ struct TodayView: View {
                 Text("明天 · \(holidayText(tomorrow))").font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("农历\(lunar.shortText)").font(.caption).foregroundStyle(.secondary)
+            }
+            if store.events.filter({ cal.isDate($0.start, inSameDayAs: tomorrow) }).isEmpty
+                && store.tasks.filter({ !$0.isDone }).isEmpty {
+                Text("明天暂无安排").font(.callout).foregroundStyle(.secondary)
             }
             ForEach(store.events.filter { cal.isDate($0.start, inSameDayAs: tomorrow) }) { e in
                 HStack(spacing: 8) {
