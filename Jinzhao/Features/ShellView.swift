@@ -92,7 +92,7 @@ struct WindowBackdrop: View {
         LinearGradient(
             colors: scheme == .dark
                 ? [Color(red: 0.13, green: 0.10, blue: 0.30), Color(red: 0.05, green: 0.10, blue: 0.32), Color(red: 0.02, green: 0.05, blue: 0.16)]
-                : [Color(red: 0.98, green: 0.80, blue: 0.70), Color(red: 0.85, green: 0.88, blue: 0.98), Color(red: 0.98, green: 0.93, blue: 0.72)],
+                : [Color(red: 1.00, green: 0.93, blue: 0.82), Color(red: 1.00, green: 0.85, blue: 0.68), Color(red: 0.99, green: 0.90, blue: 0.74)],
             startPoint: .topLeading, endPoint: .bottomTrailing
         )
         .ignoresSafeArea()

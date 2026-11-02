@@ -84,7 +84,8 @@ struct TodayView: View {
         let greet = hour < 12 ? "早上好" : hour < 18 ? "下午好" : "晚上好"
         let openTasks = store.tasks.filter { !$0.isDone }.count
         let important = store.tasks.filter { $0.isImportant && !$0.isDone }.count
-        return HStack(spacing: 8) {
+        return VStack(alignment: .leading, spacing: 3) {
+          HStack(spacing: 8) {
             Text("\(greet)，老板。").fontWeight(.medium)
             if isFirstWorkdayAfterHoliday {
                 Text("假期结束第一天，今天").foregroundStyle(.secondary)
@@ -97,6 +98,10 @@ struct TodayView: View {
                 Label("\(important) 件重要", systemImage: "flag.fill").font(.callout).foregroundStyle(.red)
             }
             Text("· \(openTasks) 项待办").font(.callout).foregroundStyle(.secondary)
+          }
+          // 宣传语：问候下方小字，每天打开第一眼能看到，不抢汇总信息
+          Text("把今天，过得井井有条。")
+            .font(.jzCaption).foregroundStyle(.secondary)
         }
     }
 

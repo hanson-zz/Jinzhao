@@ -1,9 +1,14 @@
 import SwiftUI
+import AppKit
 
+/// 侧边导航（参考 Loop / Ice 等开源 Mac 应用的分组导航）：
+/// 品牌区（真实图标随浅/深外观切换 + 宣传语）→ 分组（日程 / 整理）→ 文件夹（可折叠）→ Pro 卡 → 本地状态
 struct SidebarView: View {
     @Binding var selection: ShellView.Section
     @EnvironmentObject private var store: DataStore
     @EnvironmentObject private var calendar: CalendarService
+    @Environment(\.colorScheme) private var scheme // 外观切换时刷新品牌区图标
+    @State private var foldersExpanded = true
 
     private func count(for section: ShellView.Section) -> Int? {
         switch section {
@@ -21,75 +26,179 @@ struct SidebarView: View {
             .sorted { $0.name < $1.name }
     }
 
-    private let folderColors: [Color] = [.green, .pink, .purple, .blue, .orange]
+    /// 栏目图标块配色（低饱和，选中时点亮；今天用暖橙，不抢日期条的蓝色焦点）
+    private func tileColor(for section: ShellView.Section) -> Color {
+        switch section {
+        case .today: return JZ.warm
+        case .upcoming: return .indigo
+        case .calendar: return JZ.danger
+        case .tasks: return JZ.success
+        case .habits: return JZ.teal
+        case .notes: return .yellow
+        case .inbox: return .purple
+        }
+    }
 
     var body: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 4) {
-                // App 标识
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(LinearGradient(colors: [.orange, .purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 26, height: 26)
-                        .overlay(Text("今").font(.system(size: 13, weight: .bold)).foregroundStyle(.white))
-                    Text("今朝").font(.headline)
-                    Spacer()
-                    Text("Pro").font(.caption2).foregroundStyle(.secondary)
-                }
-                .padding(.bottom, 8)
+                brandHeader
 
-                // 搜索/新建已挪到窗口工具栏（定版设计规范）
-                ForEach(ShellView.Section.allCases, id: \.self) { section in
-                    Button { selection = section } label: {
-                        HStack {
-                            Image(systemName: section.symbol).frame(width: 18)
-                            Text(section.rawValue)
-                            Spacer()
-                            if let n = count(for: section) {
-                                Text("\(n)").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(selection == section ? Color.white.opacity(0.16) : .clear,
-                                    in: RoundedRectangle(cornerRadius: 9))
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
+                groupHeader("日程")
+                navRow(.today)
+                navRow(.upcoming)
+                navRow(.calendar)
+
+                groupHeader("整理")
+                navRow(.tasks)
+                navRow(.habits)
+                navRow(.notes)
+                navRow(.inbox)
 
                 if !folderCounts.isEmpty {
-                    Text("文件夹").font(.caption).foregroundStyle(.secondary).padding(.top, 14)
-                    ForEach(Array(folderCounts.enumerated()), id: \.offset) { i, folder in
-                        folderRow(folder.name, folderColors[i % folderColors.count], folder.count)
+                    folderHeader
+                    if foldersExpanded {
+                        ForEach(folderCounts, id: \.name) { folder in
+                            folderRow(folder.name, folder.count)
+                        }
                     }
                 }
 
                 Spacer()
-
-                // 本地存储状态（卖点：数据在本地、断网可用）
-                HStack(spacing: 8) {
-                    Circle().fill(.orange).frame(width: 26, height: 26)
-                        .overlay(Text("韩").font(.caption2).foregroundStyle(.white))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("老板").font(.callout.weight(.medium))
-                        Text("本地存储 · 已离线").font(.caption2).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding(10)
-                .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+                proCard
+                localStatus
             }
             .padding(14)
         }
     }
 
-    private func folderRow(_ name: String, _ color: Color, _ count: Int) -> some View {
-        HStack {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text(name).font(.callout)
+    // MARK: 品牌区（图标 + 名称 + 宣传语）
+
+    private var brandHeader: some View {
+        HStack(spacing: 10) {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .frame(width: 36, height: 36)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("今朝").font(.jzSection)
+                Text("把今天，过得井井有条")
+                    .font(.jzCaption).foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             Spacer()
-            Text("\(count)").font(.caption).foregroundStyle(.secondary)
         }
-        .padding(.vertical, 2)
+        .padding(.bottom, 10)
+        .id(scheme) // 外观切换后重新取对应外观的应用图标
+    }
+
+    // MARK: 分组与导航行
+
+    private func groupHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.jzCaption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 2)
+    }
+
+    private func navRow(_ section: ShellView.Section) -> some View {
+        let selected = selection == section
+        let tile = tileColor(for: section)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) { selection = section }
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: section.symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(selected ? Color.white : tile)
+                    .frame(width: 26, height: 26)
+                    .background(selected ? tile : tile.opacity(0.16),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Text(section.rawValue)
+                    .font(.jzBody.weight(selected ? .semibold : .regular))
+                Spacer()
+                if let n = count(for: section), n > 0 {
+                    Text("\(n)")
+                        .font(.jzCaption.weight(.medium))
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(JZ.controlFill, in: Capsule())
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 5)
+            .background(selected ? JZ.hoverFill : Color.clear,
+                        in: RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverHighlight()
+    }
+
+    // MARK: 文件夹（可折叠）
+
+    private var folderHeader: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { foldersExpanded.toggle() }
+        } label: {
+            HStack(spacing: 4) {
+                Text("文件夹")
+                    .font(.jzCaption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(foldersExpanded ? 90 : 0))
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func folderRow(_ name: String, _ count: Int) -> some View {
+        HStack(spacing: 9) {
+            Circle().fill(JZ.capsuleColor(for: name)).frame(width: 8, height: 8)
+                .padding(.leading, 9)
+            Text(name).font(.jzBody)
+            Spacer()
+            Text("\(count)")
+                .font(.jzCaption).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .contentShape(Rectangle())
+        .hoverHighlight()
+    }
+
+    // MARK: 底部（Pro 卡 + 本地状态）
+
+    private var proCard: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "crown.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(JZ.warm)
+                .frame(width: 26, height: 26)
+                .background(JZ.warm.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("今朝 Pro").font(.jzBody.weight(.semibold))
+                Text("解锁上限与全部主题").font(.jzCaption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+    }
+
+    private var localStatus: some View {
+        HStack(spacing: 7) {
+            Circle().fill(JZ.success).frame(width: 8, height: 8)
+            Text("本地存储 · 已离线可用").font(.jzCaption).foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
     }
 }
