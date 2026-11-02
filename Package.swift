@@ -5,7 +5,7 @@ import PackageDescription
 // 系统要求（产品定版）：macOS 26+（液态玻璃）。这里的 platforms 只是编译下限，打包时 Info.plist 会写 26.0。
 let package = Package(
     name: "Jinzhao",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v14)],
     products: [
         .executable(name: "Jinzhao", targets: ["Jinzhao"])
     ],
