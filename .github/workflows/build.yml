@@ -30,6 +30,10 @@ jobs:
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Holidays"
           cp .build/release/Jinzhao "$APP/Contents/MacOS/Jinzhao"
           cp Jinzhao/Resources/Holidays/*.json "$APP/Contents/Resources/Holidays/"
+          # 声明本地化（中/英）：系统据此把标准菜单渲染为中文（文件/编辑/显示/窗口/帮助）
+          mkdir -p "$APP/Contents/Resources/zh-Hans.lproj" "$APP/Contents/Resources/en.lproj"
+          printf '/* Jinzhao zh-Hans */\n' > "$APP/Contents/Resources/zh-Hans.lproj/InfoPlist.strings"
+          printf '/* Jinzhao en */\n' > "$APP/Contents/Resources/en.lproj/InfoPlist.strings"
           # 应用图标（浅/深双外观）编译进 Assets.car
           xcrun actool Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx --target-device mac --minimum-deployment-target 26.0 --app-icon AppIcon --output-partial-info-plist /tmp/assets-info.plist 2>&1 | tee -a build.log
           cat > "$APP/Contents/Info.plist" << 'PLIST'
@@ -44,6 +48,8 @@ jobs:
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleIconFile</key><string>AppIcon</string>
             <key>CFBundleIconName</key><string>AppIcon</string>
+            <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
+            <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
             <key>CFBundleShortVersionString</key><string>0.1.0</string>
             <key>CFBundleVersion</key><string>1</string>
             <key>LSMinimumSystemVersion</key><string>26.0</string>
