@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-26
@@ -13,11 +16,13 @@ jobs:
 
       - name: Toolchain
         run: |
-          xcodebuild -version
-          swift --version
+          xcodebuild -version | tee build.log
+          swift --version 2>&1 | tee -a build.log
 
       - name: Build (release)
-        run: swift build -c release
+        run: |
+          set -o pipefail
+          swift build -c release 2>&1 | tee -a build.log
 
       - name: Package .app
         run: |
@@ -53,3 +58,18 @@ jobs:
           name: Jinzhao-dev-app
           path: Jinzhao-dev.zip
           retention-days: 30
+
+      # 无论成败，把完整编译日志推到 build-logs 分支，方便 Muse 直接读日志定位错误
+      - name: Publish build log
+        if: always()
+        run: |
+          mkdir -p /tmp/logrepo && cd /tmp/logrepo
+          git init -q
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          cp "$GITHUB_WORKSPACE/build.log" ./build.log || echo "no build.log" > build.log
+          echo "" >> build.log
+          echo "run: ${{ github.run_id }} commit: ${{ github.sha }} 结果见 Actions 页" >> build.log
+          git add build.log
+          git commit -q -m "build log ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:build-logs
