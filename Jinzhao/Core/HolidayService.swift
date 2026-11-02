@@ -91,9 +91,10 @@ final class HolidayService {
         let fmt = DateFormatter()
         fmt.calendar = Calendar(identifier: .gregorian)
         fmt.dateFormat = "yyyy-MM-dd"
+        let cal = Calendar(identifier: .gregorian)
         return file.days.allSatisfy { day in
             guard let d = fmt.date(from: day.date) else { return false }
-            return fmt.component(.year, from: d) == file.year
+            return cal.component(.year, from: d) == file.year
         }
     }
 
