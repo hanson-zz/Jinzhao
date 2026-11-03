@@ -29,7 +29,14 @@ struct TodayView: View {
                     workdayAlert
                     calendarBanner
                     HStack(alignment: .top, spacing: 16) {
-                        todayList.frame(maxWidth: .infinity)
+                        Group {
+                            if mode == .list {
+                                todayList
+                            } else {
+                                comingSoonPanel // 时间轴/看板未做完，公测期明确标「即将推出」，不放假界面
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
                         VStack(spacing: 16) {
                             habitsCard
                             tomorrowCard
@@ -63,9 +70,6 @@ struct TodayView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Text(m.rawValue)
-                            if m == .board { // 看板是 Pro，先做锁定入口（定版决策）
-                                Image(systemName: "lock.fill").font(.system(size: 9))
-                            }
                         }
                         .font(.jzBody)
                         .padding(.horizontal, 12).padding(.vertical, 5)
@@ -207,6 +211,21 @@ struct TodayView: View {
             t.isDone && (t.doneAt.map { cal.isDate($0, inSameDayAs: date) } ?? false)
         }
         return open + doneToday
+    }
+
+    /// 时间轴 / 看板占位（公测版）：明确标「即将推出」
+    private var comingSoonPanel: some View {
+        VStack(spacing: 10) {
+            Image(systemName: mode == .timeline ? "clock" : "square.grid.2x2")
+                .font(.system(size: 30)).foregroundStyle(.secondary)
+            Text("「\(mode.rawValue)」即将推出")
+                .font(.jzSection)
+            Text("公测版先把列表做到顺手，时间轴和看板在后续版本补上。")
+                .font(.jzBody).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
     }
 
     private var todayList: some View {

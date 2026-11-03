@@ -157,16 +157,21 @@ struct GlassCard<Content: View>: View {
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
 
+    /// 版本号读 Info.plist（打包时写入），不在代码里写死
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
+    }
+
     var body: some View {
         VStack(spacing: JZ.spaceS) {
             Image(nsImage: NSApplication.shared.applicationIconImage)
                 .resizable()
                 .frame(width: 72, height: 72)
             Text("今朝").font(.jzTitle)
-            Text("版本 0.1.0（开发版）").font(.jzCaption).foregroundStyle(.secondary)
+            Text("版本 \(appVersion) · 公测版").font(.jzCaption).foregroundStyle(.secondary)
             Text("把今天，过得井井有条。").font(.jzBody).padding(.top, 4)
             Divider().padding(.vertical, 6)
-            Text("节假日数据来自开源项目 holiday-cn（作者 NateScarlet，MIT License），随应用内置并可自动更新。你的数据只保存在本机，不上传。")
+            Text("节假日数据来自 NateScarlet/holiday-cn，MIT 许可，随应用内置并可自动更新。你的数据只保存在本机，不上传。")
                 .font(.jzCaption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("好") { dismiss() }

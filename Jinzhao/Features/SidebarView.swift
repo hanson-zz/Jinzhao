@@ -65,7 +65,7 @@ struct SidebarView: View {
                 }
 
                 Spacer()
-                proCard
+                betaCard
                 localStatus
             }
             .padding(14)
@@ -174,26 +174,16 @@ struct SidebarView: View {
 
     // MARK: 底部（Pro 卡 + 本地状态）
 
-    private var proCard: some View {
-        HStack(spacing: 10) {
-            // 皇冠改实心暖橙渐变 + 白图形：淡桃底配橙图形对比太弱、显脏
-            Image(systemName: "crown.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(.white)
-                .frame(width: 26, height: 26)
-                .background(
-                    LinearGradient(colors: [JZ.warm, JZ.warm.opacity(0.72)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            VStack(alignment: .leading, spacing: 1) {
-                Text("今朝 Pro").font(.jzBody.weight(.semibold))
-                Text("解锁全部功能").font(.jzCaption).foregroundStyle(.secondary).lineLimit(1)
-            }
+    /// 公测期占位卡：Pro 入口与授权码尚未上线，先隐藏；这里只标公测状态（正式版再换回 Pro 卡）
+    private var betaCard: some View {
+        HStack(spacing: 8) {
+            Circle().fill(JZ.teal).frame(width: 8, height: 8)
+            Text("公测版 · 全部功能开放")
+                .font(.jzCaption.weight(.semibold))
+                .lineLimit(1)
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
         }
         .padding(10)
-        // 卡底改霜白（cardFill）+ 发丝描边：原黑色半透明压在暖渐变上发橄榄灰
         .background(JZ.cardFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
