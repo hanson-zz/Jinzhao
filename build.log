@@ -1,0 +1,213 @@
+Xcode 26.6
+Build version 17F113
+swift-driver version: 1.148.6 Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)
+Target: arm64-apple-macosx26.0
+0%: Compute target dependency graph
+Building targets in dependency order
+Target dependency graph (2 targets)
+0%: Gather provisioning inputs
+0%: Create build description
+0%: Discovering version info for swiftc
+0%: Discovering version info for clang
+0%: Discovering version info for ld
+Build description signature: 3aebc57584ba9165f7101d50f69774c4
+
+Build description path: /Users/runner/work/Jinzhao/Jinzhao/.build/apple/Intermediates.noindex/XCBuildData/3aebc57584ba9165f7101d50f69774c4.xcbuilddata
+
+0%: Create build directory $(TARGET_BUILD_DIR)
+0%: Create build directory $(OBJROOT)
+0%: Build stat cache for /Applications/Xcode_26.6.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk
+0%: Create build directory $(OBJROOT)/SwiftExplicitPrecompiledModules
+0%: Create build directory $(OBJROOT)/ExplicitPrecompiledModules
+0%: Create build directory $(TARGET_BUILD_DIR)/Release
+0%: Create build directory $(OBJROOT)/EagerLinkingTBDs/Release
+0%: Write Jinzhao_const_extract_protocols.json (x86_64)
+0%: Write Jinzhao.SwiftFileList (x86_64)
+0%: Write Jinzhao.LinkFileList (x86_64)
+0%: Write Jinzhao-OutputFileMap.json (x86_64)
+0%: Write Jinzhao_const_extract_protocols.json (arm64)
+0%: Write Jinzhao.SwiftFileList (arm64)
+0%: Write Jinzhao.LinkFileList (arm64)
+0%: Write Jinzhao-OutputFileMap.json (arm64)
+0%: Write Jinzhao.DependencyStaticMetadataFileList
+0%: Write Jinzhao.DependencyMetadataFileList
+0%: Create build directory $(TARGET_BUILD_DIR)/Release/PackageFrameworks
+51%: Planning Swift module Jinzhao (x86_64)
+51%: Planning Swift module Jinzhao (arm64)
+53%: Compile Jinzhao (x86_64)
+53%: Compiling Clang module _SwiftConcurrencyShims
+53%: Compiling Clang module DeveloperToolsSupport
+53%: Compiling Clang module SwiftShims
+15%: Compiling Clang module _SwiftConcurrencyShims
+15%: Compiling Clang module _Builtin_stddef
+15%: Compiling Clang module _Builtin_stdarg
+15%: Compiling Clang module ptrauth
+15%: Compiling Clang module _Builtin_stdbool
+15%: Compiling Clang module SwiftShims
+15%: Compiling Clang module _Builtin_float
+15%: Compiling Clang module _Builtin_stddef
+15%: Compiling Clang module _Builtin_stdarg
+18%: Compiling Clang module _Builtin_float
+18%: Compiling Clang module _AvailabilityInternal
+18%: Compiling Clang module ptrcheck
+18%: Compiling Clang module ptrauth
+18%: Compiling Clang module DeveloperToolsSupport
+21%: Compiling Clang module ptrcheck
+21%: Compiling Clang module _AvailabilityInternal
+21%: Compiling Clang module _Builtin_stdbool
+21%: Compile Jinzhao (arm64)
+21%: Compiling Clang module _DarwinFoundation1
+24%: Compiling Clang module _DarwinFoundation1
+24%: Compiling Clang module _Builtin_limits
+24%: Compiling Clang module _DarwinFoundation2
+24%: Compiling Clang module _Builtin_limits
+24%: Compiling Clang module _DarwinFoundation2
+27%: Compiling Clang module _Builtin_tgmath
+27%: Compiling Clang module _Builtin_stdint
+27%: Compiling Clang module sys_types
+29%: Compiling Clang module sys_types
+29%: Compiling Clang module OpenGL
+29%: Compiling Clang module _Builtin_stdint
+29%: Compiling Clang module _DarwinFoundation3
+29%: Compiling Clang module libDER
+32%: Compiling Clang module libDER
+32%: Compiling Clang module _DarwinFoundation3
+32%: Compiling Clang module OpenGL
+32%: Compiling Clang module _Builtin_stdatomic
+34%: Compiling Clang module _Builtin_inttypes
+34%: Compiling Clang module _Builtin_intrinsics
+34%: Compiling Clang module _Builtin_stdatomic
+36%: Compiling Clang module Darwin
+36%: Compiling Clang module _Builtin_tgmath
+36%: Compiling Clang module _Builtin_intrinsics
+38%: Compiling Clang module _Builtin_inttypes
+38%: Compiling Clang module simd
+38%: Compiling Clang module simd
+38%: Compiling Clang module Darwin
+38%: Compiling Clang module MachO
+41%: Compiling Clang module MachO
+41%: Compiling Clang module launch
+41%: Compiling Clang module CUPS
+42%: Compiling Clang module Spatial
+42%: Compiling Clang module libkern
+42%: Compiling Clang module ObjectiveC
+42%: Compiling Clang module libkern
+45%: Compiling Clang module ObjectiveC
+45%: Compiling Clang module CUPS
+45%: Compiling Clang module os_object
+46%: Compiling Clang module os_object
+46%: Compiling Clang module launch
+46%: Compiling Clang module Spatial
+46%: Compiling Clang module os_workgroup
+46%: Compiling Clang module os_workgroup
+49%: Compiling Clang module Dispatch
+49%: Compiling Clang module Dispatch
+51%: Compiling Clang module XPC
+51%: Compiling Clang module CoreFoundation
+51%: Compiling Clang module CoreFoundation
+51%: Compiling Clang module XPC
+51%: Compiling Clang module os
+53%: Compiling Clang module CFNetwork
+53%: Compiling Clang module IOKit
+53%: Compiling Clang module ColorSync
+53%: Compiling Clang module Security
+53%: Compiling Clang module ColorSync
+56%: Compiling Clang module CFNetwork
+56%: Compiling Clang module os
+58%: Compiling Clang module IOKit
+58%: Compiling Clang module CoreGraphics
+58%: Compiling Clang module DiskArbitration
+58%: Compiling Clang module Security
+60%: Compiling Clang module CoreText
+60%: Compiling Clang module ImageIO
+61%: Compiling Clang module CoreGraphics
+61%: Compiling Clang module DiskArbitration
+61%: Compiling Clang module CoreServices
+63%: Compiling Clang module ImageIO
+63%: Compiling Clang module CoreText
+63%: Compiling Clang module CoreServices
+65%: Compiling Clang module Foundation
+65%: Compiling Clang module Foundation
+66%: Compiling Clang module Accessibility
+66%: Compiling Clang module UniformTypeIdentifiers
+66%: Compiling Clang module DataDetection
+66%: Compiling Clang module CoreTransferable
+66%: Compiling Clang module Symbols
+69%: Compiling Clang module DataDetection
+69%: Compiling Clang module CoreTransferable
+69%: Compiling Clang module _LocationEssentials
+69%: Compiling Clang module CoreData
+71%: Compiling Clang module OSLog
+71%: Compiling Clang module UniformTypeIdentifiers
+71%: Compiling Clang module IOSurface
+71%: Compiling Clang module ApplicationServices
+73%: Compiling Clang module _LocationEssentials
+73%: Compiling Clang module ApplicationServices
+73%: Compiling Clang module UserNotifications
+75%: Compiling Clang module CoreLocation
+75%: Compiling Clang module CoreData
+76%: Compiling Clang module OSLog
+76%: Compiling Clang module CoreLocation
+76%: Compiling Clang module EventKit
+78%: Compiling Clang module IOSurface
+78%: Compiling Clang module UserNotifications
+78%: Compiling Clang module EventKit
+78%: Compiling Clang module Accessibility
+80%: Compiling Clang module Metal
+80%: Compiling Clang module Symbols
+80%: Compiling Clang module Metal
+82%: Compiling Clang module CoreVideo
+83%: Compiling Clang module CoreVideo
+83%: Compiling Clang module CoreImage
+83%: Compiling Clang module QuartzCore
+85%: Compiling Clang module CoreImage
+85%: Compiling Clang module QuartzCore
+86%: Compiling Clang module SwiftUICore
+86%: Compiling Clang module AppKit
+87%: Compiling Clang module AppKit
+87%: Compiling Clang module SwiftUICore
+88%: Compiling Clang module SwiftUI
+88%: Compiling AppModels.swift, CalendarService.swift, DataStore.swift, DatePhraseParser.swift, DesignTokens.swift, HolidayService.swift, HolidayUpdater.swift, LunarCalendar.swift, SolarTermTable.swift, CalendarView.swift, InboxRailView.swift, PlaceholderView.swift, ShellView.swift, SidebarView.swift, TasksView.swift, TodayView.swift, UpcomingView.swift, JinzhaoApp.swift
+88%: Compile 18 Swift source files (x86_64)
+89%: Compiling Clang module SwiftUI
+90%: Compiling AppModels.swift, CalendarService.swift, DataStore.swift, DatePhraseParser.swift, DesignTokens.swift, HolidayService.swift, HolidayUpdater.swift, LunarCalendar.swift, SolarTermTable.swift, CalendarView.swift, InboxRailView.swift, PlaceholderView.swift, ShellView.swift, SidebarView.swift, TasksView.swift, TodayView.swift, UpcomingView.swift, JinzhaoApp.swift
+90%: Compile 18 Swift source files (arm64)
+91%: Discovering Swift tasks after 'Compiling AppModels.swift, CalendarService.swift, DataStore.swift, DatePhraseParser.swift, DesignTokens.swift, HolidayService.swift, HolidayUpdater.swift, LunarCalendar.swift, SolarTermTable.swift, CalendarView.swift, InboxRailView.swift, PlaceholderView.swift, ShellView.swift, SidebarView.swift, TasksView.swift, TodayView.swift, UpcomingView.swift, JinzhaoApp.swift'
+91%: Unblock downstream dependents of Jinzhao (x86_64)
+91%: Link Jinzhao (x86_64)
+91%: Copy Jinzhao.swiftmodule (x86_64)
+91%: Copy Jinzhao.swiftdoc (x86_64)
+91%: Copy Jinzhao.abi.json (x86_64)
+91%: Copy Jinzhao.swiftsourceinfo (x86_64)
+94%: Discovering Swift tasks after 'Compiling AppModels.swift, CalendarService.swift, DataStore.swift, DatePhraseParser.swift, DesignTokens.swift, HolidayService.swift, HolidayUpdater.swift, LunarCalendar.swift, SolarTermTable.swift, CalendarView.swift, InboxRailView.swift, PlaceholderView.swift, ShellView.swift, SidebarView.swift, TasksView.swift, TodayView.swift, UpcomingView.swift, JinzhaoApp.swift'
+94%: Unblock downstream dependents of Jinzhao (arm64)
+94%: Copy Jinzhao.swiftmodule (arm64)
+94%: Link Jinzhao (arm64)
+94%: Copy Jinzhao.swiftdoc (arm64)
+94%: Copy Jinzhao.abi.json (arm64)
+94%: Copy Jinzhao.swiftsourceinfo (arm64)
+98%: Create universal binary Jinzhao
+98%: Generate Jinzhao.dSYM for Jinzhao
+99%: Register execution policy exception for Jinzhao
+100%: Build succeeded
+Build complete!
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.actool.compilation-results</key>
+	<dict>
+		<key>output-files</key>
+		<array>
+			<string>/Users/runner/work/Jinzhao/Jinzhao/dist/今朝.app/Contents/Resources/AppIcon.icns</string>
+			<string>/Users/runner/work/Jinzhao/Jinzhao/dist/今朝.app/Contents/Resources/Assets.car</string>
+			<string>/tmp/assets-info.plist</string>
+		</array>
+	</dict>
+</dict>
+</plist>
+dist/今朝.app: valid on disk
+dist/今朝.app: satisfies its Designated Requirement
+Architectures in the fat file: dist/今朝.app/Contents/MacOS/Jinzhao are: x86_64 arm64 
+
+run: 41592483028 commit: 31f03f128d976b0ee0e7aa14ccf789d55187b843 结果见 Actions 页
