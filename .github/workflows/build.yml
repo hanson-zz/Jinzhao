@@ -51,10 +51,10 @@ jobs:
             <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
             <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
             <key>CFBundleShortVersionString</key><string>0.1.0</string>
-            <key>CFBundleVersion</key><string>1</string>
+            <key>CFBundleVersion</key><string>${{ github.run_number }}</string>
             <key>LSMinimumSystemVersion</key><string>26.0</string>
-            <key>NSCalendarsUsageDescription</key><string>今朝需要读取和写入你的日历，把日程和任务放在一起显示。</string>
-            <key>NSRemindersUsageDescription</key><string>今朝可以把提醒事项和日程放在一起显示。</string>
+            <key>NSCalendarsFullAccessUsageDescription</key><string>今朝需要完整访问你的日历，把日程和任务放在一起显示，也能帮你新建日程。</string>
+            <key>NSRemindersFullAccessUsageDescription</key><string>今朝可以把提醒事项和日程、任务放在一起显示。</string>
           </dict>
           </plist>
           PLIST
