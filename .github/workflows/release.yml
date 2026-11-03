@@ -1,0 +1,147 @@
+name: Release Jinzhao
+
+# 发布流程：打 v* 标签自动触发；也可以在 Actions 页手动运行并填版本号（会自动补打标签）
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（不带 v），如 0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+            git config user.name "github-actions"
+            git config user.email "actions@github.com"
+            git tag "v$V" 2>/dev/null || true
+            git push origin "v$V" 2>/dev/null || true
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+          echo "发布版本：$V"
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version | tee build.log
+          swift --version 2>&1 | tee -a build.log
+
+      - name: Build universal (arm64 + x86_64, release)
+        run: |
+          set -o pipefail
+          swift build -c release --arch arm64 --arch x86_64 2>&1 | tee -a build.log
+
+      - name: Package 今朝.app
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          APP="dist/今朝.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Holidays"
+          cp ".build/apple/Products/Release/Jinzhao" "$APP/Contents/MacOS/Jinzhao"
+          cp Jinzhao/Resources/Holidays/*.json "$APP/Contents/Resources/Holidays/"
+          # 应用图标（浅/深双外观）编译进 Assets.car
+          xcrun actool Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx --target-device mac --minimum-deployment-target 26.0 --app-icon AppIcon --output-partial-info-plist /tmp/assets-info.plist 2>&1 | tee -a build.log
+          # 声明本地化（中/英）：系统菜单显示中文
+          mkdir -p "$APP/Contents/Resources/zh-Hans.lproj" "$APP/Contents/Resources/en.lproj"
+          printf '/* Jinzhao zh-Hans */\n' > "$APP/Contents/Resources/zh-Hans.lproj/InfoPlist.strings"
+          printf '/* Jinzhao en */\n' > "$APP/Contents/Resources/en.lproj/InfoPlist.strings"
+          cat > "$APP/Contents/Info.plist" << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>今朝</string>
+            <key>CFBundleDisplayName</key><string>今朝</string>
+            <key>CFBundleIdentifier</key><string>app.jinzhao.dev</string>
+            <key>CFBundleExecutable</key><string>Jinzhao</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleIconFile</key><string>AppIcon</string>
+            <key>CFBundleIconName</key><string>AppIcon</string>
+            <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
+            <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+            <key>CFBundleVersion</key><string>${{ github.run_number }}</string>
+            <key>LSMinimumSystemVersion</key><string>26.0</string>
+            <key>NSCalendarsFullAccessUsageDescription</key><string>今朝需要完整访问你的日历，把日程和任务放在一起显示，也能帮你新建日程。</string>
+            <key>NSRemindersFullAccessUsageDescription</key><string>今朝可以把提醒事项和日程、任务放在一起显示。</string>
+          </dict>
+          </plist>
+          PLIST
+          # ad-hoc 签名（未购开发者证书时的发布方式，说明文件里教用户放行）
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --verbose=2 "$APP" 2>&1 | tee -a build.log
+          lipo -info "$APP/Contents/MacOS/Jinzhao" | tee -a build.log
+
+      - name: Make DMG
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          STAGE="dmg-stage"
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          cp -R "dist/今朝.app" "$STAGE/"
+          ln -s /Applications "$STAGE/应用程序"
+          cp "release/打不开怎么办.txt" "$STAGE/"
+          hdiutil create -volname "今朝" -srcfolder "$STAGE" -ov -format UDZO "Jinzhao-${VERSION}.dmg"
+          shasum -a 256 "Jinzhao-${VERSION}.dmg" > "Jinzhao-${VERSION}.dmg.sha256"
+          cat "Jinzhao-${VERSION}.dmg.sha256"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          gh release create "$TAG" --title "今朝 $VERSION 公测版" --notes-file RELEASE_NOTES.md 2>/dev/null \
+            || gh release edit "$TAG" --title "今朝 $VERSION 公测版" --notes-file RELEASE_NOTES.md
+          gh release upload "$TAG" "Jinzhao-${VERSION}.dmg" "Jinzhao-${VERSION}.dmg.sha256" --clobber
+
+      # 国内镜像（可选）：在仓库 Secrets 里配好 R2_* 后自动同步，未配置时跳过
+      - name: Sync DMG to Cloudflare R2 (optional)
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_BUCKET" ]; then
+            echo "未配置 R2 密钥，跳过国内镜像同步"
+            exit 0
+          fi
+          pip install -q awscli
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          aws s3 cp "Jinzhao-${VERSION}.dmg" "s3://$R2_BUCKET/Jinzhao-${VERSION}.dmg" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          aws s3 cp "Jinzhao-${VERSION}.dmg" "s3://$R2_BUCKET/Jinzhao-latest.dmg" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          echo "已同步到 R2：$R2_BUCKET"
+
+      # 无论成败，把完整编译日志推到 build-logs 分支，方便 Muse 直接读日志定位错误
+      - name: Publish build log
+        if: always()
+        run: |
+          mkdir -p /tmp/logrepo && cd /tmp/logrepo
+          git init -q
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          cp "$GITHUB_WORKSPACE/build.log" ./build.log || echo "no build.log" > build.log
+          echo "" >> build.log
+          echo "run: ${{ github.run_id }} commit: ${{ github.sha }} 结果见 Actions 页" >> build.log
+          git add build.log
+          git commit -q -m "build log ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:build-logs
