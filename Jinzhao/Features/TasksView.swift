@@ -4,10 +4,12 @@ import SwiftUI
 struct TasksView: View {
     @EnvironmentObject private var store: DataStore
     @State private var newTitle = ""
-    @State private var newDue: Date = Date()
-    @State private var hasDue = false
+    @State private var dueDate: Date? = nil      // 由中文日期解析或日历胶囊设置
+    @State private var dueManual = false         // 手动选过日期后，输入解析不再覆盖
+    @State private var showDuePicker = false
     @State private var expanded: Set<UUID> = []
     @State private var subtaskDrafts: [UUID: String] = [:]
+    @FocusState private var newTitleFocused: Bool
 
     private var cal: Calendar { Calendar(identifier: .gregorian) }
 
@@ -27,13 +29,22 @@ struct TasksView: View {
 
     var body: some View {
         GlassCard {
+          if store.tasks.isEmpty {
+            // 空状态：不进滚动区，固定在中栏上三分之一处
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                addBar
+                HStack { Spacer(); emptyState; Spacer() }
+                    .padding(.top, 56)
+                Spacer()
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                     addBar
-                    if store.tasks.isEmpty {
-                        emptyState
-                    }
                     if !openTasks.isEmpty {
                         sectionTitle("待办 · \(openTasks.count)")
                         ForEach(openTasks) { task in
@@ -50,6 +61,11 @@ struct TasksView: View {
                 }
                 .padding(20)
             }
+          }
+        }
+        // 菜单「新建任务」：外壳切到任务页后发来聚焦信号
+        .onReceive(NotificationCenter.default.publisher(for: .jinzhaoFocusTaskField)) { _ in
+            newTitleFocused = true
         }
     }
 
@@ -67,36 +83,112 @@ struct TasksView: View {
             Image(systemName: "plus.circle").foregroundStyle(.secondary)
             TextField("新任务，回车添加", text: $newTitle)
                 .textFieldStyle(.plain)
+                .focused($newTitleFocused)
                 .onSubmit(addTask)
-            Toggle("截止", isOn: $hasDue)
-                .toggleStyle(.checkbox)
-                .font(.callout)
-            if hasDue {
-                DatePicker("", selection: $newDue, displayedComponents: [.date, .hourAndMinute])
-                    .labelsHidden()
+                .onChange(of: newTitle) { _, value in
+                    // 输入即解析中文日期（如「明天下午三点开会」）；手动选过日期后不再覆盖
+                    if !dueManual { dueDate = DatePhraseParser.parse(value).due }
+                }
+            dueCapsule
+            // 蓝色「添加」按钮去掉：回车即添加；有文字时只给一个玻璃按钮
+            if !newTitle.trimmingCharacters(in: .whitespaces).isEmpty {
+                Button("添加", action: addTask).glassButton()
             }
-            Button("添加", action: addTask)
-                .buttonStyle(.borderedProminent)
-                .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
-        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 11))
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: 11))
+    }
+
+    /// 截止胶囊：日历图标，选好日期后显示日期；点击弹出快捷选项 + 日期时间选择
+    private var dueCapsule: some View {
+        Button { showDuePicker = true } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "calendar")
+                if let d = dueDate { Text(dueLabel(d)) }
+            }
+            .font(.jzCaption)
+        }
+        .glassButton()
+        .popover(isPresented: $showDuePicker, arrowEdge: .bottom) {
+            duePicker
+        }
+    }
+
+    private var duePicker: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Button("今天") { setQuick(day: Date()) }
+                Button("明天") { setQuick(day: cal.date(byAdding: .day, value: 1, to: Date())!) }
+                Button("下周一") { setQuick(day: nextMonday) }
+            }
+            DatePicker("截止时间", selection: dueBinding, displayedComponents: [.date, .hourAndMinute])
+            if dueDate != nil {
+                Button("清除截止", role: .destructive) {
+                    dueDate = nil
+                    dueManual = true
+                    showDuePicker = false
+                }
+            }
+        }
+        .glassButton()
+        .padding(14)
+        .frame(width: 300)
+    }
+
+    private var dueBinding: Binding<Date> {
+        Binding(get: { dueDate ?? Date() }, set: { dueDate = $0; dueManual = true })
+    }
+
+    private var nextMonday: Date {
+        let todayW = cal.component(.weekday, from: Date())
+        var delta = (2 - todayW + 7) % 7
+        if delta == 0 { delta = 7 }
+        return cal.date(byAdding: .day, value: delta, to: Date())!
+    }
+
+    /// 快捷选日：保留已解析/已选的时间，没有则默认 9:00
+    private func setQuick(day: Date) {
+        var c = cal.dateComponents([.year, .month, .day], from: day)
+        if let existing = dueDate {
+            let tc = cal.dateComponents([.hour, .minute], from: existing)
+            c.hour = tc.hour
+            c.minute = tc.minute
+        } else {
+            c.hour = 9
+            c.minute = 0
+        }
+        dueDate = cal.date(from: c)
+        dueManual = true
+        showDuePicker = false
+    }
+
+    private func dueLabel(_ d: Date) -> String {
+        let time = DateFormatter()
+        time.dateFormat = "HH:mm"
+        if cal.isDateInToday(d) { return "今天 \(time.string(from: d))" }
+        if cal.isDateInTomorrow(d) { return "明天 \(time.string(from: d))" }
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "zh_CN")
+        day.dateFormat = "M月d日"
+        return "\(day.string(from: d)) \(time.string(from: d))"
     }
 
     private func addTask() {
-        store.addTask(title: newTitle, dueDate: hasDue ? newDue : nil)
+        // 提交时把日期时间词从标题里抠掉（「明天下午三点开会」→「开会」）
+        let parsed = DatePhraseParser.parse(newTitle)
+        store.addTask(title: parsed.title, dueDate: dueDate)
         newTitle = ""
+        dueDate = nil
+        dueManual = false
     }
 
     private var emptyState: some View {
         VStack(spacing: 8) {
             Image(systemName: "checklist").font(.largeTitle).foregroundStyle(.secondary)
-            Text("还没有任务").font(.headline)
-            Text("在上方输入框写下第一件事，回车就存好，关掉 App 也不会丢。")
-                .font(.callout).foregroundStyle(.secondary)
+            Text("还没有任务").font(.jzSection)
+            Text("写下第一件事，回车就好")
+                .font(.jzBody).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
     }
 
     private func sectionTitle(_ text: String) -> some View {

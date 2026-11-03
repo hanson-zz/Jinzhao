@@ -43,6 +43,23 @@ enum JZ {
     }
 }
 
+/// 外观设置（跟随系统 / 浅色 / 深色），菜单栏「显示」与设置页共用，存 UserDefaults
+enum AppearanceSetting: String, CaseIterable {
+    case system = "跟随系统"
+    case light = "浅色"
+    case dark = "深色"
+
+    static let storageKey = "jz.appearance"
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 extension Color {
     /// 由浅/深两套 RGB(A) 生成随系统外观切换的颜色
     static func dynamic(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {

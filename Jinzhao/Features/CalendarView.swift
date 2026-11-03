@@ -44,6 +44,10 @@ struct CalendarView: View {
         .sheet(isPresented: $showingNewEvent) {
             NewEventSheet()
         }
+        // 菜单「新建日程」：切到日历页后自动打开新建表单（已授权时）
+        .onReceive(NotificationCenter.default.publisher(for: .jinzhaoOpenNewEvent)) { _ in
+            if calendar.authState == .authorized { showingNewEvent = true }
+        }
     }
 
     private var header: some View {

@@ -183,7 +183,7 @@ struct SidebarView: View {
                 .background(JZ.warm.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text("今朝 Pro").font(.jzBody.weight(.semibold))
-                Text("解锁上限与全部主题").font(.jzCaption).foregroundStyle(.secondary)
+                Text("解锁全部功能").font(.jzCaption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
             Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)

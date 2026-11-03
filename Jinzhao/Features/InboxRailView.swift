@@ -6,6 +6,7 @@ struct InboxRailView: View {
     @EnvironmentObject private var store: DataStore
     @Environment(\.holidayService) private var holidays
     @State private var draft = ""
+    @FocusState private var draftFocused: Bool
 
     private var cal: Calendar { Calendar(identifier: .gregorian) }
 
@@ -17,6 +18,10 @@ struct InboxRailView: View {
                 Spacer()
             }
             .padding(16)
+        }
+        // ⌘N / 菜单「随手记到收件箱」：光标直接落进输入框（之前命令发了没人接，是死的）
+        .onReceive(NotificationCenter.default.publisher(for: .jinzhaoQuickCapture)) { _ in
+            draftFocused = true
         }
     }
 
@@ -36,6 +41,7 @@ struct InboxRailView: View {
             HStack {
                 TextField("随手记一笔…", text: $draft)
                     .textFieldStyle(.plain)
+                    .focused($draftFocused)
                     .onSubmit {
                         store.addInbox(text: draft)
                         draft = ""
@@ -99,9 +105,10 @@ struct InboxRailView: View {
                 Text(next.date.formatted(date: .abbreviated, time: .omitted))
                     .font(.jzCaption).foregroundStyle(.secondary)
                 if next.arrangementPending {
-                    // 更新模块已接上（启动静默拉取 + 新安排本地通知），这句是真的了
-                    Text("安排未公布 · 按法定节日估算，公布后自动更新")
+                    // 短句防截断（更新模块已接线，公布后会自动换成正式安排）
+                    Text("调休安排待公布")
                         .font(.jzCaption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 miniMonth
             }
@@ -122,7 +129,7 @@ struct InboxRailView: View {
         }
         return VStack(spacing: 5) {
             HStack {
-                Text("\(year)年\(month)月").font(.jzCaption.weight(.semibold))
+                Text(verbatim: "\(year)年\(month)月").font(.jzCaption.weight(.semibold))
                 Spacer()
                 Text("农历\(LunarCalendar.info(for: today).monthText)")
                     .font(.jzCaption).foregroundStyle(.secondary)
