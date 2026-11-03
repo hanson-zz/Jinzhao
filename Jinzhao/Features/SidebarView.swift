@@ -176,11 +176,15 @@ struct SidebarView: View {
 
     private var proCard: some View {
         HStack(spacing: 10) {
+            // 皇冠改实心暖橙渐变 + 白图形：淡桃底配橙图形对比太弱、显脏
             Image(systemName: "crown.fill")
                 .font(.system(size: 13))
-                .foregroundStyle(JZ.warm)
+                .foregroundStyle(.white)
                 .frame(width: 26, height: 26)
-                .background(JZ.warm.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(
+                    LinearGradient(colors: [JZ.warm, JZ.warm.opacity(0.72)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text("今朝 Pro").font(.jzBody.weight(.semibold))
                 Text("解锁全部功能").font(.jzCaption).foregroundStyle(.secondary).lineLimit(1)
@@ -189,7 +193,12 @@ struct SidebarView: View {
             Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
         }
         .padding(10)
-        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        // 卡底改霜白（cardFill）+ 发丝描边：原黑色半透明压在暖渐变上发橄榄灰
+        .background(JZ.cardFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
+                .strokeBorder(JZ.hairline, lineWidth: 1)
+        )
     }
 
     private var localStatus: some View {

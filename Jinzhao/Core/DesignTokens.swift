@@ -32,6 +32,10 @@ enum JZ {
     static let innerFill = Color.dynamic(light: (0, 0, 0, 0.045), dark: (1, 1, 1, 0.06))
     /// 控件底色（搜索框、胶囊等）
     static let controlFill = Color.dynamic(light: (0, 0, 0, 0.055), dark: (1, 1, 1, 0.10))
+    /// 浮层小卡底色（Pro 卡等）：浅色用霜白，压在暖色渐变上不发灰发脏；深色用白色微光
+    static let cardFill = Color.dynamic(light: (1, 1, 1, 0.62), dark: (1, 1, 1, 0.07))
+    /// 发丝描边（浮层小卡轮廓）
+    static let hairline = Color.dynamic(light: (0, 0, 0, 0.07), dark: (1, 1, 1, 0.09))
     /// hover 高亮
     static let hoverFill = Color.dynamic(light: (0, 0, 0, 0.05), dark: (1, 1, 1, 0.09))
 
