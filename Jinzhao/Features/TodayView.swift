@@ -20,7 +20,7 @@ struct TodayView: View {
     }
 
     var body: some View {
-        GlassCard {
+        SolidCard {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     header
@@ -99,7 +99,7 @@ struct TodayView: View {
             }
             Label("\(store.habits.count) 个习惯", systemImage: "repeat").font(.callout)
             if important > 0 {
-                Label("\(important) 件重要", systemImage: "flag.fill").font(.callout).foregroundStyle(.red)
+                Label("\(important) 件重要", systemImage: "flag.fill").font(.callout).foregroundStyle(JZ.warm)
             }
             Text("· \(openTasks) 项待办").font(.callout).foregroundStyle(.secondary)
           }
@@ -135,7 +135,7 @@ struct TodayView: View {
                         if let t = badge.text {
                             Text(t).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
                                 .padding(.horizontal, 4).padding(.vertical, 1)
-                                .background(isWork(badge) ? Color.gray : Color.red,
+                                .background(isWork(badge) ? JZ.warm : JZ.success,
                                             in: Capsule())
                         }
                     }
@@ -165,7 +165,7 @@ struct TodayView: View {
 
     private func dayNumberColor(_ day: Date, isToday: Bool) -> Color {
         if isToday { return .white }
-        return holidays.isOffDay(on: day) ? .red : .primary
+        return holidays.isOffDay(on: day) ? JZ.success : .primary
     }
 
     private func weekdayText(_ day: Date) -> String {
@@ -177,13 +177,13 @@ struct TodayView: View {
     @ViewBuilder private var workdayAlert: some View {
         if let next = nextAdjustedWorkday {
             HStack(spacing: 8) {
-                Image(systemName: "info.circle").foregroundStyle(.orange)
+                Image(systemName: "info.circle").foregroundStyle(JZ.warm)
                 Text("\(holidayText(next)) 调休上班，已帮你把当天的闹钟和例会提醒加上。")
                     .font(.callout)
                 Spacer()
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(Color.orange.opacity(0.13), in: RoundedRectangle(cornerRadius: 11))
+            .background(JZ.warm.opacity(0.12), in: RoundedRectangle(cornerRadius: 11))
         }
     }
 
@@ -268,18 +268,18 @@ struct TodayView: View {
     @ViewBuilder private var calendarBanner: some View {
         if calendar.authState == .notDetermined {
             HStack(spacing: 8) {
-                Image(systemName: "calendar.badge.plus").foregroundStyle(.blue)
+                Image(systemName: "calendar.badge.plus").foregroundStyle(.secondary)
                 Text("连接苹果日历后，你的日程会出现在这里，带会议链接的还能一键入会。")
                     .font(.callout)
                 Spacer()
                 Button("连接日历") { Task { await calendar.requestAccess() } }
-                    .glassButton().controlSize(.small)
+                    .glassButton(prominent: true).controlSize(.small)
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(Color.blue.opacity(0.13), in: RoundedRectangle(cornerRadius: 11))
+            .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: 11))
         } else if calendar.authState == .denied {
             HStack(spacing: 8) {
-                Image(systemName: "calendar.badge.exclamationmark").foregroundStyle(.orange)
+                Image(systemName: "calendar.badge.exclamationmark").foregroundStyle(JZ.warm)
                 Text("日历权限被拒绝了，去系统设置里给今朝打开就能看到日程。")
                     .font(.callout)
                 Spacer()
@@ -287,7 +287,7 @@ struct TodayView: View {
                     .glassButton().controlSize(.small)
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(Color.orange.opacity(0.13), in: RoundedRectangle(cornerRadius: 11))
+            .background(JZ.warm.opacity(0.12), in: RoundedRectangle(cornerRadius: 11))
         }
     }
 
@@ -326,8 +326,8 @@ struct TodayView: View {
     /// 勾选圈按优先级上色：已完成绿 / 重要红 / 已过期橙 / 普通灰
     private func checkColor(_ t: TaskItem) -> Color {
         if t.isDone { return JZ.success }
-        if t.isImportant { return JZ.danger }
-        if let due = t.dueDate, due < Date() { return JZ.warm }
+        if t.isImportant { return JZ.warm }
+        if let due = t.dueDate, due < Date() { return JZ.danger }
         return .secondary
     }
 

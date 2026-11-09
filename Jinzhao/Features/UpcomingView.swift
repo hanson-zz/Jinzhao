@@ -25,7 +25,7 @@ struct UpcomingView: View {
     }
 
     var body: some View {
-        GlassCard {
+        SolidCard {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text("即将到来").font(.system(size: 24, weight: .bold))
@@ -80,7 +80,7 @@ struct UpcomingView: View {
                         .frame(width: 46)
                     Text(t.title).font(.callout)
                     if t.isImportant {
-                        Label("重要", systemImage: "flag.fill").font(.caption).foregroundStyle(.red)
+                        Label("重要", systemImage: "flag.fill").font(.caption).foregroundStyle(JZ.warm)
                     }
                     Spacer()
                     Text("任务").font(.caption).foregroundStyle(.secondary)

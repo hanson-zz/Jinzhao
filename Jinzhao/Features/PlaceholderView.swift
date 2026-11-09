@@ -16,7 +16,7 @@ struct PlaceholderView: View {
     }
 
     var body: some View {
-        GlassCard {
+        SolidCard {
             VStack(spacing: 12) {
                 Image(systemName: section.symbol)
                     .font(.system(size: 40))

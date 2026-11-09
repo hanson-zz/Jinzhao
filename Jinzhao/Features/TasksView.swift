@@ -28,7 +28,7 @@ struct TasksView: View {
     }
 
     var body: some View {
-        GlassCard {
+        SolidCard {
           if store.tasks.isEmpty {
             // 空状态：不进滚动区，固定在中栏上三分之一处
             VStack(alignment: .leading, spacing: 16) {
@@ -219,7 +219,7 @@ struct TasksView: View {
                         if let due = task.dueDate {
                             Label(dueText(due), systemImage: "clock")
                                 .font(.caption)
-                                .foregroundStyle(isOverdue(task) ? .red : .secondary)
+                                .foregroundStyle(isOverdue(task) ? JZ.danger : .secondary)
                         }
                         if !task.subtasks.isEmpty {
                             Text("子任务 \(task.subtasks.filter { $0.isDone }.count)/\(task.subtasks.count)")
@@ -233,7 +233,7 @@ struct TasksView: View {
                 Spacer()
                 Button { store.toggleImportant(task) } label: {
                     Image(systemName: task.isImportant ? "flag.fill" : "flag")
-                        .foregroundStyle(task.isImportant ? .red : .secondary)
+                        .foregroundStyle(task.isImportant ? JZ.warm : .secondary)
                 }
                 .buttonStyle(.plain)
                 .help("标为重要")
@@ -294,8 +294,8 @@ struct TasksView: View {
     /// 勾选圈按优先级上色：已完成绿 / 重要红 / 已过期橙 / 普通灰
     private func checkColor(_ task: TaskItem) -> Color {
         if task.isDone { return JZ.success }
-        if task.isImportant { return JZ.danger }
-        if isOverdue(task) { return JZ.warm }
+        if task.isImportant { return JZ.warm }
+        if isOverdue(task) { return JZ.danger }
         return .secondary
     }
 

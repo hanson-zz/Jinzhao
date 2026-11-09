@@ -28,7 +28,7 @@ struct CalendarView: View {
     }
 
     var body: some View {
-        GlassCard {
+        SolidCard {
             VStack(alignment: .leading, spacing: 14) {
                 header
                 if calendar.authState == .authorized {
@@ -55,14 +55,14 @@ struct CalendarView: View {
             Text(monthTitle).font(.system(size: 22, weight: .bold))
             Spacer()
             Button { shiftMonth(-1) } label: { Image(systemName: "chevron.left") }
-                .buttonStyle(.bordered).controlSize(.small)
+                .glassButton().controlSize(.small)
             Button("今天") {
                 monthAnchor = Date()
                 selectedDay = Date()
             }
-            .buttonStyle(.bordered).controlSize(.small)
+            .glassButton().controlSize(.small)
             Button { shiftMonth(1) } label: { Image(systemName: "chevron.right") }
-                .buttonStyle(.bordered).controlSize(.small)
+                .glassButton().controlSize(.small)
             Button("+ 新建日程") { showingNewEvent = true }
                 .glassButton().controlSize(.small)
                 .disabled(calendar.authState != .authorized)
@@ -104,11 +104,11 @@ struct CalendarView: View {
             HStack(spacing: 3) {
                 Text("\(cal.component(.day, from: day))")
                     .font(.system(size: 14, weight: isToday || isSelected ? .bold : .regular))
-                    .foregroundStyle(isSelected || isToday ? .white : (holidays.isOffDay(on: day) ? .red : .primary))
+                    .foregroundStyle(isSelected || isToday ? .white : (holidays.isOffDay(on: day) ? JZ.success : .primary))
                 if let t = badge.text {
                     Text(t).font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
                         .padding(.horizontal, 3).padding(.vertical, 1)
-                        .background(isWorkBadge(badge) ? Color.gray : Color.red, in: Capsule())
+                        .background(isWorkBadge(badge) ? JZ.warm : JZ.success, in: Capsule())
                 }
             }
             Text(SolarTermTable.term(on: day) ?? LunarCalendar.info(for: day).dayText)
@@ -123,7 +123,7 @@ struct CalendarView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 46)
-        .background(isSelected ? JZ.accent : (isToday ? JZ.accent.opacity(0.35) : Color.white.opacity(0.05)),
+        .background(isSelected ? JZ.accent : (isToday ? JZ.accent.opacity(0.35) : JZ.innerFill),
                     in: RoundedRectangle(cornerRadius: 9))
         .contentShape(Rectangle())
         .onTapGesture { selectedDay = day }
@@ -201,10 +201,10 @@ struct CalendarView: View {
                 .multilineTextAlignment(.center).frame(maxWidth: 380)
             if calendar.authState == .denied {
                 Button("打开系统设置") { calendar.openPrivacySettings() }
-                    .buttonStyle(.borderedProminent)
+                    .glassButton(prominent: true)
             } else {
                 Button("连接日历") { Task { await calendar.requestAccess() } }
-                    .buttonStyle(.borderedProminent)
+                    .glassButton(prominent: true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -232,11 +232,12 @@ struct NewEventSheet: View {
             TextField("地点（可空）", text: $location).textFieldStyle(.roundedBorder)
             if failed {
                 Text("保存失败：请确认日历权限已开启，并且系统里有可用的默认日历。")
-                    .font(.caption).foregroundStyle(.red)
+                    .font(.caption).foregroundStyle(JZ.danger)
             }
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
+                    .glassButton()
                 Button("保存到苹果日历") {
                     if calendar.createEvent(title: title.isEmpty ? "（无标题）" : title,
                                             start: start, end: end,
@@ -246,7 +247,7 @@ struct NewEventSheet: View {
                         failed = true
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .glassButton(prominent: true)
                 .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }

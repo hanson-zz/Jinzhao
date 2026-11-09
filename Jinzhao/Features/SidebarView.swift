@@ -111,22 +111,24 @@ struct SidebarView: View {
             HStack(spacing: 9) {
                 Image(systemName: section.symbol)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(selected ? Color.white : tile)
+                    .foregroundStyle(selected ? .white : tile)
                     .frame(width: 26, height: 26)
-                    .background(selected ? tile : tile.opacity(0.16),
+                    .background(selected ? Color.white.opacity(0.25) : tile.opacity(0.15),
                                 in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 Text(section.rawValue)
                     .font(.jzBody.weight(selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? .white : .primary)
                 Spacer()
                 if let n = count(for: section), n > 0 {
                     Text("\(n)")
                         .font(.jzCaption.weight(.medium))
+                        .foregroundStyle(selected ? .white : .secondary)
                         .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(JZ.controlFill, in: Capsule())
+                        .background(selected ? Color.white.opacity(0.25) : JZ.controlFill, in: Capsule())
                 }
             }
             .padding(.horizontal, 8).padding(.vertical, 5)
-            .background(selected ? JZ.hoverFill : Color.clear,
+            .background(selected ? JZ.selectedBg : Color.clear,
                         in: RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous))
             .contentShape(Rectangle())
         }

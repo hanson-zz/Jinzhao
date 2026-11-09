@@ -119,27 +119,25 @@ struct ShellView: View {
     }
 }
 
-/// 窗口底色：深色为深蓝紫渐变，浅色为桃蓝黄柔和渐变（效果图同款氛围）
+/// 窗口底色：系统窗口底（自定义渐变已删除，浅/深由系统适配）
 struct WindowBackdrop: View {
-    @Environment(\.colorScheme) private var scheme
     var body: some View {
-        LinearGradient(
-            colors: scheme == .dark
-                ? [Color(red: 0.13, green: 0.10, blue: 0.30), Color(red: 0.05, green: 0.10, blue: 0.32), Color(red: 0.02, green: 0.05, blue: 0.16)]
-                : [Color(red: 1.00, green: 0.94, blue: 0.86), Color(red: 1.00, green: 0.88, blue: 0.73), Color(red: 0.99, green: 0.91, blue: 0.78)],
-            startPoint: .topLeading, endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
+        JZ.windowBg.ignoresSafeArea()
     }
 }
 
-/// 玻璃卡片容器：macOS 26 用原生液态玻璃（有折射和高光），旧系统回退毛玻璃材质
+/// 玻璃容器（只给悬浮层级用：侧栏、右栏这类窗口铬件）：
+/// macOS 26 用原生液态玻璃；系统开了「降低透明度」时自动变实底
 struct GlassCard<Content: View>: View {
     var cornerRadius: CGFloat = JZ.radiusL
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ViewBuilder var content: Content
 
     @ViewBuilder var body: some View {
-        if #available(macOS 26.0, *) {
+        if reduceTransparency {
+            content
+                .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else if #available(macOS 26.0, *) {
             content
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         } else {
@@ -147,9 +145,21 @@ struct GlassCard<Content: View>: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                        .strokeBorder(JZ.separator, lineWidth: 1)
                 )
         }
+    }
+}
+
+/// 内容卡（系统 App 风格）：实底 + 圆角 12 + 很淡的阴影，文字清楚、层次分明，不用玻璃
+struct SolidCard<Content: View>: View {
+    var cornerRadius: CGFloat = 12
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: Color(nsColor: .shadowColor), radius: 8, x: 0, y: 2)
     }
 }
 

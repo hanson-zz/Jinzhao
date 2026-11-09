@@ -160,11 +160,11 @@ struct InboxRailView: View {
             HStack(spacing: 1) {
                 Text("\(cal.component(.day, from: d))")
                     .font(.system(size: 11, weight: isToday ? .bold : .regular))
-                    .foregroundStyle(isToday ? .white : (holidays.isOffDay(on: d) ? JZ.danger : .primary))
+                    .foregroundStyle(isToday ? .white : (holidays.isOffDay(on: d) ? JZ.success : .primary))
                 if let t = badge.text {
                     Text(t)
                         .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(isToday ? .white : (badgeIsWork(badge) ? .secondary : JZ.danger))
+                        .foregroundStyle(isToday ? .white : (badgeIsWork(badge) ? JZ.warm : JZ.success))
                 }
             }
             Text(sub)

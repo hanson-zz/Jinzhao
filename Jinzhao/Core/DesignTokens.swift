@@ -5,9 +5,10 @@ import AppKit
 ///
 /// 字号 5 级：display 26 / title 20 / section 15 / body 13.5 / caption 11
 /// 间距 3 档：S 8 / M 14 / L 20
-/// 圆角 3 档：S 10（控件）/ M 15（内嵌卡）/ L 20（外层玻璃卡）
-/// 配色：语义色随浅/深色自动切换；蓝色（accent）只给全页唯一焦点（日期条「今天」、小日历今天），
-/// 其余控件一律玻璃底 + 白/黑字，避免满屏蓝。
+/// 圆角 3 档：S 10（控件）/ M 15（内嵌卡）/ L 20（外层卡）
+/// 配色：全部用 macOS 系统语义色（日历 / 提醒事项 / 备忘录同款），不写死任何数值：
+/// 浅/深由系统适配，强调色跟随用户在「系统设置 > 外观」里的选择。
+/// 强调色只出现在三处：今天的日期、当前选中项、主按钮。
 enum JZ {
     // MARK: 间距（3 档）
     static let spaceS: CGFloat = 8
@@ -19,28 +20,38 @@ enum JZ {
     static let radiusM: CGFloat = 15
     static let radiusL: CGFloat = 20
 
-    // MARK: 配色（浅 / 深双套）
-    /// 唯一焦点蓝
-    static let accent = Color.dynamic(light: (0.10, 0.42, 0.95), dark: (0.25, 0.55, 1.00))
-    /// 习惯环等第二信息色（青），与焦点蓝区分
-    static let teal = Color.dynamic(light: (0.02, 0.62, 0.55), dark: (0.18, 0.83, 0.72))
-    /// 假期暖橙（下一个假期卡）
-    static let warm = Color.dynamic(light: (0.92, 0.45, 0.10), dark: (1.00, 0.62, 0.25))
-    static let danger = Color.dynamic(light: (0.88, 0.20, 0.20), dark: (1.00, 0.35, 0.35))
-    static let success = Color.dynamic(light: (0.12, 0.65, 0.30), dark: (0.30, 0.85, 0.45))
-    /// 内嵌卡底色
-    static let innerFill = Color.dynamic(light: (0, 0, 0, 0.045), dark: (1, 1, 1, 0.06))
-    /// 控件底色（搜索框、胶囊等）
-    static let controlFill = Color.dynamic(light: (0, 0, 0, 0.055), dark: (1, 1, 1, 0.10))
-    /// 浮层小卡底色（Pro 卡等）：浅色用霜白，压在暖色渐变上不发灰发脏；深色用白色微光
-    static let cardFill = Color.dynamic(light: (1, 1, 1, 0.62), dark: (1, 1, 1, 0.07))
-    /// 发丝描边（浮层小卡轮廓）
-    static let hairline = Color.dynamic(light: (0, 0, 0, 0.07), dark: (1, 1, 1, 0.09))
+    // MARK: 配色（系统语义色）
+    /// 窗口底
+    static let windowBg = Color(nsColor: .windowBackgroundColor)
+    /// 内容卡实底
+    static let cardBg = Color(nsColor: .controlBackgroundColor)
+    /// 分割线 / 发丝描边
+    static let separator = Color(nsColor: .separatorColor)
+    /// 系统强调色（跟随用户系统设置，不写死蓝色）
+    static let accent = Color.accentColor
+    /// 选中项底（系统选中色）
+    static let selectedBg = Color(nsColor: .selectedContentBackgroundColor)
+    /// 休 = 绿
+    static let success = Color.green
+    /// 班 / 重要 / 假期 = 橙
+    static let warm = Color.orange
+    /// 过期 / 删除 = 红
+    static let danger = Color.red
+    /// 节气 = 青
+    static let teal = Color.teal
+    /// 内嵌底（输入条、嵌套块）
+    static let innerFill = Color.primary.opacity(0.045)
+    /// 控件底（搜索框、胶囊等）
+    static let controlFill = Color.primary.opacity(0.06)
+    /// 浮层小卡底 / 描边（侧栏内的小卡，压在玻璃上）
+    static let cardFill = Color(nsColor: .controlBackgroundColor)
+    static let hairline = Color(nsColor: .separatorColor)
     /// hover 高亮
-    static let hoverFill = Color.dynamic(light: (0, 0, 0, 0.05), dark: (1, 1, 1, 0.09))
+    static let hoverFill = Color.primary.opacity(0.06)
 
-    /// 文件夹 / 标签胶囊色板（按名称哈希稳定取色）
-    static let capsulePalette: [Color] = [.orange, .purple, .pink, .teal, .indigo, .brown]
+    /// 标签色盘：只用系统 12 色（胶囊底为该色 15% 透明，字用本色）
+    static let capsulePalette: [Color] = [.red, .orange, .yellow, .green, .mint, .teal,
+                                           .cyan, .blue, .indigo, .purple, .pink, .brown]
     static func capsuleColor(for name: String) -> Color {
         let idx = abs(name.hashValue) % capsulePalette.count
         return capsulePalette[idx]
@@ -61,22 +72,6 @@ enum AppearanceSetting: String, CaseIterable {
         case .light: return .light
         case .dark: return .dark
         }
-    }
-}
-
-extension Color {
-    /// 由浅/深两套 RGB(A) 生成随系统外观切换的颜色
-    static func dynamic(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
-        dynamic(light: (light.0, light.1, light.2, 1), dark: (dark.0, dark.1, dark.2, 1))
-    }
-
-    static func dynamic(light: (Double, Double, Double, Double), dark: (Double, Double, Double, Double)) -> Color {
-        let ns = NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            let c = isDark ? dark : light
-            return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: c.3)
-        }
-        return Color(nsColor: ns)
     }
 }
 
@@ -103,7 +98,7 @@ struct CapsuleTag: View {
             .foregroundStyle(c)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
-            .background(c.opacity(0.16), in: Capsule())
+            .background(c.opacity(0.15), in: Capsule())
     }
 }
 
