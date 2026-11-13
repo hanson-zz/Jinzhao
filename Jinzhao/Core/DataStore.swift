@@ -78,6 +78,12 @@ final class DataStore: ObservableObject {
         tasks.append(TaskItem(title: t, dueDate: dueDate, folderName: folderName))
     }
 
+    /// 仅在 EventKit 保存成功之后记录关联 ID。本地任务不会因为日历写入失败而改变。
+    func linkCalendarEvent(taskID: UUID, eventID: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        tasks[index].calendarEventID = eventID
+    }
+
     func toggleTask(_ task: TaskItem) {
         guard let i = tasks.firstIndex(where: { $0.id == task.id }) else { return }
         tasks[i].isDone.toggle()
