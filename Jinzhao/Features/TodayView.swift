@@ -28,6 +28,7 @@ struct TodayView: View {
                     dateStrip
                     workdayAlert
                     calendarBanner
+                    dailyOverview
                     ViewThatFits(in: .horizontal) {
                         dashboardColumns
                         VStack(alignment: .leading, spacing: 12) {
@@ -66,12 +67,42 @@ struct TodayView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(18)
         .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
                 .strokeBorder(JZ.separator.opacity(0.22), lineWidth: 0.5)
         }
+    }
+
+    /// 使用真实数据的简洁概览，不用演示任务填满空白。
+    private var dailyOverview: some View {
+        let events = calendar.events.filter { isToday($0.start) }.count
+        let unfinished = store.tasks.filter { !$0.isDone }.count
+        let checked = store.habits.filter { $0.isComplete }.count
+        return HStack(spacing: 10) {
+            overviewMetric("待办任务", value: "\(unfinished)", symbol: "checklist", color: JZ.accent)
+            overviewMetric("今日日程", value: "\(events)", symbol: "calendar", color: JZ.teal)
+            overviewMetric("习惯打卡", value: "\(checked)/\(store.habits.count)", symbol: "circle.dotted.circle", color: JZ.warm)
+        }
+    }
+
+    private func overviewMetric(_ title: String, value: String, symbol: String, color: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(color)
+                .frame(width: 32, height: 32)
+                .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value).font(.system(size: 17, weight: .semibold, design: .rounded))
+                Text(title).font(.jzCaption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: 13))
     }
 
     // MARK: 头部
@@ -258,17 +289,34 @@ struct TodayView: View {
             Text("今天 日程与任务 · \(calendar.events.filter { isToday($0.start) }.count + displayTasks.count)")
                 .font(.jzSection).padding(.bottom, 6)
             if calendar.events.filter({ isToday($0.start) }).isEmpty && displayTasks.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Image(systemName: "checkmark.circle")
+                VStack(alignment: .leading, spacing: 14) {
+                    Image(systemName: "checkmark.seal")
                         .font(.system(size: 28, weight: .ultraLight))
-                        .foregroundStyle(.tertiary)
-                    Text("今天还没有安排")
-                        .font(.jzBody.weight(.medium))
-                    Text("可以先记录一件想完成的事，或从右侧收件箱整理待办。")
+                        .foregroundStyle(JZ.accent.opacity(0.72))
+                        .frame(width: 52, height: 52)
+                        .background(JZ.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 15))
+                    Text("今天，从一件小事开始")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("还没有安排。记录一项待办，或先把想法放进收件箱。")
                         .font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 10) {
+                        Button {
+                            NotificationCenter.default.post(name: .jinzhaoNewTask, object: nil)
+                        } label: {
+                            Label("新建任务", systemImage: "plus")
+                        }
+                        .glassButton(prominent: true)
+                        Button {
+                            NotificationCenter.default.post(name: .jinzhaoQuickCapture, object: nil)
+                        } label: {
+                            Label("随手记录", systemImage: "square.and.pencil")
+                        }
+                        .glassButton()
+                    }
+                    .controlSize(.regular)
                 }
-                .frame(maxWidth: .infinity, minHeight: 126, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 220, alignment: .leading)
                 .padding(.vertical, 8)
             }
             // 无分隔线（定版规范），靠行距与 hover 高亮区分
