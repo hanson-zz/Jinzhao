@@ -51,6 +51,7 @@ struct ShellView: View {
         .padding(10) // 统一较窄的分栏间距，避免中栏像独立浮窗
         .background(WindowBackdrop())
         .animation(.easeInOut(duration: 0.18), value: selection)
+        .onAppear { JZGlobalHotkey.shared.install() }
         .toolbar {
             // 搜索框挪到工具栏（原在侧边栏里）
             ToolbarItem(placement: .navigation) {
