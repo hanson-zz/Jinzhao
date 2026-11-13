@@ -53,6 +53,8 @@ jobs:
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Holidays"
           cp ".build/apple/Products/Release/Jinzhao" "$APP/Contents/MacOS/Jinzhao"
           cp Jinzhao/Resources/Holidays/*.json "$APP/Contents/Resources/Holidays/"
+          # 在云端从矢量源重建浅/深图标：适配 16–1024px，避免 Dock 中缩放模糊
+          swift Tools/render_app_icon.swift
           # 应用图标（浅/深双外观）编译进 Assets.car
           xcrun actool Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx --target-device mac --minimum-deployment-target 26.0 --app-icon AppIcon --output-partial-info-plist /tmp/assets-info.plist 2>&1 | tee -a build.log
           # 声明本地化（中/英）：系统菜单显示中文

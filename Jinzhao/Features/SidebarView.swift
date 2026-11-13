@@ -41,7 +41,7 @@ struct SidebarView: View {
 
     var body: some View {
         GlassCard {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 brandHeader
 
                 groupHeader("日程")
@@ -68,7 +68,7 @@ struct SidebarView: View {
                 betaCard
                 localStatus
             }
-            .padding(14)
+            .padding(12)
         }
     }
 
@@ -113,7 +113,7 @@ struct SidebarView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(selected ? .white : tile)
                     .frame(width: 26, height: 26)
-                    .background(selected ? Color.white.opacity(0.25) : tile.opacity(0.15),
+                    .background(selected ? Color.white.opacity(0.25) : tile.opacity(0.09),
                                 in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 Text(section.rawValue)
                     .font(.jzBody.weight(selected ? .semibold : .regular))
@@ -127,7 +127,7 @@ struct SidebarView: View {
                         .background(selected ? Color.white.opacity(0.25) : JZ.controlFill, in: Capsule())
                 }
             }
-            .padding(.horizontal, 8).padding(.vertical, 5)
+            .padding(.horizontal, 8).padding(.vertical, 4)
             .background(selected ? JZ.selectedBg : Color.clear,
                         in: RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous))
             .contentShape(Rectangle())
