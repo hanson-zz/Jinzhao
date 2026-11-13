@@ -34,7 +34,7 @@ struct ShellView: View {
     }
 
     var body: some View {
-        HStack(spacing: JZ.spaceM) {
+        HStack(spacing: JZ.spaceS) {
             SidebarView(selection: $selection)
                 .frame(width: 208)
                 .layoutPriority(2) // 两侧栏定宽优先保住
@@ -47,7 +47,7 @@ struct ShellView: View {
                 .layoutPriority(2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(JZ.spaceM) // 左右留白一致
+        .padding(10) // 统一较窄的分栏间距，避免中栏像独立浮窗
         .background(WindowBackdrop())
         .animation(.easeInOut(duration: 0.18), value: selection)
         .toolbar {
@@ -151,15 +151,19 @@ struct GlassCard<Content: View>: View {
     }
 }
 
-/// 内容卡（系统 App 风格）：实底 + 圆角 12 + 很淡的阴影，文字清楚、层次分明，不用玻璃
+/// 主内容使用低层级的原生面板：与左右侧栏对齐，而非漂浮在窗口上的白板。
+/// 不叠加投影，保持浅色/深色与「降低透明度」辅助功能的可读性。
 struct SolidCard<Content: View>: View {
-    var cornerRadius: CGFloat = 12
+    var cornerRadius: CGFloat = JZ.radiusL
     @ViewBuilder var content: Content
 
     var body: some View {
         content
-            .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: Color(nsColor: .shadowColor), radius: 8, x: 0, y: 2)
+            .background(JZ.windowBg, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(JZ.separator.opacity(0.38), lineWidth: 0.5)
+            }
     }
 }
 
