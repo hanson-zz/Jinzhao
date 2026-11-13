@@ -26,7 +26,7 @@ func render(size: Int, dark: Bool, output: String) {
         ? [NSColor(calibratedRed: 0.16, green: 0.20, blue: 0.35, alpha: 1),
            NSColor(calibratedRed: 0.08, green: 0.10, blue: 0.20, alpha: 1)]
         : [NSColor(calibratedRed: 1.0, green: 0.89, blue: 0.72, alpha: 1),
-           NSColor(calibratedRed: 0.98, green: 0.72, blue: 0.48, alpha: 1)])!
+           NSColor(calibratedRed: 0.94, green: 0.65, blue: 0.42, alpha: 1)])!
         .draw(in: base, angle: 90)
     NSColor.white.withAlphaComponent(dark ? 0.13 : 0.48).setStroke()
     base.lineWidth = 12
@@ -94,7 +94,7 @@ func render(size: Int, dark: Bool, output: String) {
     let plate = rounded(151, 142, 722, 414, 118)
     NSGradient(colors: dark
         ? [NSColor(calibratedRed: 0.29, green: 0.35, blue: 0.59, alpha: 1),
-           NSColor(calibratedRed: 0.16, green: 0.21, blue: 0.39, alpha: 1)]
+           NSColor(calibratedRed: 0.10, green: 0.14, blue: 0.28, alpha: 1)]
         : [NSColor.white,
            NSColor(calibratedRed: 1.0, green: 0.96, blue: 0.91, alpha: 1)])!
         .draw(in: plate, angle: 90)
@@ -106,14 +106,14 @@ func render(size: Int, dark: Bool, output: String) {
     NSColor(calibratedRed: 0.98, green: 0.44, blue: 0.24, alpha: 0.87).setFill()
     bar.fill()
     let title = "今" as NSString
-    let font = NSFont.systemFont(ofSize: 285, weight: .bold)
+    let font = NSFont.systemFont(ofSize: 325, weight: .heavy)
     let attrs: [NSAttributedString.Key: Any] = [
         .font: font,
         .foregroundColor: dark ? NSColor.white :
-            NSColor(calibratedRed: 0.51, green: 0.22, blue: 0.17, alpha: 1)
+            NSColor(calibratedRed: 0.37, green: 0.13, blue: 0.11, alpha: 1)
     ]
     let sz = title.size(withAttributes: attrs)
-    title.draw(at: NSPoint(x: 512 - sz.width / 2, y: 175), withAttributes: attrs)
+    title.draw(at: NSPoint(x: 512 - sz.width / 2, y: 168), withAttributes: attrs)
 
     ctx.flushGraphics()
     NSGraphicsContext.restoreGraphicsState()
