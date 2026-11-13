@@ -34,6 +34,20 @@ struct JinzhaoApp: App {
                 .frame(minWidth: 1060, minHeight: 700)
         }
         .windowStyle(.hiddenTitleBar)
+        Window("快速启动 · 今朝", id: "quick-launcher") {
+            QuickLauncherView()
+                .environmentObject(store)
+                .environmentObject(calendarService)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+        Window("今日浮窗 · 今朝", id: "today-floating") {
+            TodayFloatingView()
+                .environmentObject(store)
+                .environmentObject(calendarService)
+        }
+        .defaultSize(width: 320, height: 440)
+        .windowResizability(.contentSize)
         .commands {
             // 应用菜单：关于 / 设置（系统菜单标题由包内简体中文本地化决定）
             CommandGroup(replacing: .appInfo) {
@@ -52,6 +66,8 @@ struct JinzhaoApp: App {
                 Divider()
                 Button("快速启动") { post(.jinzhaoQuickLaunch) }
                     .keyboardShortcut("k", modifiers: .command)
+                Button("打开今日浮窗") { post(.jinzhaoShowFloatingToday) }
+                    .keyboardShortcut("j", modifiers: [.command, .shift])
             }
             // 前往菜单：栏目切换（⌘1–⌘7）+ 外观（系统「显示」菜单保持原样，不重名）
             CommandMenu("前往") {
@@ -113,6 +129,7 @@ extension Notification.Name {
     static let jinzhaoSwitchSection = Notification.Name("jinzhao.switchSection") // object = 栏目中文名
     static let jinzhaoShowAbout = Notification.Name("jinzhao.showAbout")
     static let jinzhaoShowSettings = Notification.Name("jinzhao.showSettings")
+    static let jinzhaoShowFloatingToday = Notification.Name("jinzhao.showFloatingToday")
 }
 
 // MARK: - HolidayService 注入
