@@ -21,19 +21,19 @@ func render(size: Int, dark: Bool, output: String) {
     ctx.imageInterpolation = .high
     ctx.cgContext.scaleBy(x: CGFloat(size) / 1024, y: CGFloat(size) / 1024)
 
-    let base = rounded(42, 42, 940, 940, 218)
+    let base = rounded(22, 22, 980, 980, 225)
     NSGradient(colors: dark
         ? [NSColor(calibratedRed: 0.16, green: 0.20, blue: 0.35, alpha: 1),
            NSColor(calibratedRed: 0.08, green: 0.10, blue: 0.20, alpha: 1)]
-        : [NSColor(calibratedRed: 1.0, green: 0.95, blue: 0.85, alpha: 1),
-           NSColor(calibratedRed: 0.99, green: 0.82, blue: 0.67, alpha: 1)])!
+        : [NSColor(calibratedRed: 1.0, green: 0.89, blue: 0.72, alpha: 1),
+           NSColor(calibratedRed: 0.98, green: 0.72, blue: 0.48, alpha: 1)])!
         .draw(in: base, angle: 90)
     NSColor.white.withAlphaComponent(dark ? 0.13 : 0.48).setStroke()
     base.lineWidth = 12
     base.stroke()
 
     // The smiling sun reads as the app's mascot even at Dock sizes.
-    let sun = ellipse(266, 382, 492, 492)
+    let sun = ellipse(213, 342, 598, 598)
     NSGradient(colors: [
         NSColor(calibratedRed: 1.0, green: 0.87, blue: 0.36, alpha: 1),
         NSColor(calibratedRed: 1.0, green: 0.56, blue: 0.20, alpha: 1)
@@ -47,14 +47,14 @@ func render(size: Int, dark: Bool, output: String) {
     rayColor.setStroke()
     for deg in stride(from: 15, through: 165, by: 30) {
         let a = CGFloat(deg) * .pi / 180
-        let x1 = 512 + cos(a) * 268
-        let y1 = 625 + sin(a) * 268
-        let x2 = 512 + cos(a) * 306
-        let y2 = 625 + sin(a) * 306
+        let x1 = 512 + cos(a) * 316
+        let y1 = 640 + sin(a) * 316
+        let x2 = 512 + cos(a) * 357
+        let y2 = 640 + sin(a) * 357
         let ray = NSBezierPath()
         ray.move(to: NSPoint(x: x1, y: y1))
         ray.line(to: NSPoint(x: x2, y: y2))
-        ray.lineWidth = 17
+        ray.lineWidth = 23
         ray.lineCapStyle = .round
         ray.stroke()
     }
@@ -88,10 +88,10 @@ func render(size: Int, dark: Bool, output: String) {
     smile.stroke()
 
     // Calendar plate. Avoid tiny text or complicated ornamentation.
-    let plateShadow = rounded(215, 168, 594, 344, 104)
+    let plateShadow = rounded(151, 123, 722, 414, 118)
     NSColor.black.withAlphaComponent(dark ? 0.33 : 0.15).setFill()
     plateShadow.fill()
-    let plate = rounded(215, 185, 594, 344, 102)
+    let plate = rounded(151, 142, 722, 414, 118)
     NSGradient(colors: dark
         ? [NSColor(calibratedRed: 0.29, green: 0.35, blue: 0.59, alpha: 1),
            NSColor(calibratedRed: 0.16, green: 0.21, blue: 0.39, alpha: 1)]
@@ -102,18 +102,18 @@ func render(size: Int, dark: Bool, output: String) {
     plate.lineWidth = 8
     plate.stroke()
 
-    let bar = rounded(292, 461, 440, 22, 11)
+    let bar = rounded(260, 493, 504, 25, 12)
     NSColor(calibratedRed: 0.98, green: 0.44, blue: 0.24, alpha: 0.87).setFill()
     bar.fill()
     let title = "今" as NSString
-    let font = NSFont.systemFont(ofSize: 238, weight: .bold)
+    let font = NSFont.systemFont(ofSize: 285, weight: .bold)
     let attrs: [NSAttributedString.Key: Any] = [
         .font: font,
         .foregroundColor: dark ? NSColor.white :
             NSColor(calibratedRed: 0.51, green: 0.22, blue: 0.17, alpha: 1)
     ]
     let sz = title.size(withAttributes: attrs)
-    title.draw(at: NSPoint(x: 512 - sz.width / 2, y: 206), withAttributes: attrs)
+    title.draw(at: NSPoint(x: 512 - sz.width / 2, y: 175), withAttributes: attrs)
 
     ctx.flushGraphics()
     NSGraphicsContext.restoreGraphicsState()
