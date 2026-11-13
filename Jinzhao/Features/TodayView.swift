@@ -22,30 +22,55 @@ struct TodayView: View {
     var body: some View {
         SolidCard {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 14) {
                     header
                     greetingLine
                     dateStrip
                     workdayAlert
                     calendarBanner
-                    HStack(alignment: .top, spacing: 16) {
-                        Group {
-                            if mode == .list {
-                                todayList
-                            } else {
-                                comingSoonPanel // 时间轴/看板未做完，公测期明确标「即将推出」，不放假界面
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        VStack(spacing: 16) {
+                    ViewThatFits(in: .horizontal) {
+                        dashboardColumns
+                        VStack(alignment: .leading, spacing: 12) {
+                            primaryPanel
                             habitsCard
                             tomorrowCard
                         }
-                        .frame(width: 288)
                     }
                 }
-                .padding(20)
+                .padding(18)
             }
+        }
+    }
+
+    // MARK: 今日工作区布局
+
+    /// 有足够宽度时采用两栏，窄窗口自动改为单栏，避免挤压主任务列表。
+    private var dashboardColumns: some View {
+        HStack(alignment: .top, spacing: 12) {
+            primaryPanel
+                .frame(minWidth: 300, maxWidth: .infinity, alignment: .topLeading)
+            VStack(spacing: 12) {
+                habitsCard
+                tomorrowCard
+            }
+            .frame(width: 250)
+        }
+    }
+
+    private var primaryPanel: some View {
+        Group {
+            if mode == .list {
+                todayList
+            } else {
+                comingSoonPanel
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
+                .strokeBorder(JZ.separator.opacity(0.22), lineWidth: 0.5)
         }
     }
 
@@ -178,7 +203,7 @@ struct TodayView: View {
         if let next = nextAdjustedWorkday {
             HStack(spacing: 8) {
                 Image(systemName: "info.circle").foregroundStyle(JZ.warm)
-                Text("\(holidayText(next)) 调休上班，已帮你把当天的闹钟和例会提醒加上。")
+                Text("\(holidayText(next)) 为调休工作日，请留意当天安排。")
                     .font(.callout)
                 Spacer()
             }
@@ -233,9 +258,18 @@ struct TodayView: View {
             Text("今天 日程与任务 · \(calendar.events.filter { isToday($0.start) }.count + displayTasks.count)")
                 .font(.jzSection).padding(.bottom, 6)
             if calendar.events.filter({ isToday($0.start) }).isEmpty && displayTasks.isEmpty {
-                Text("今天还没有安排。去「任务」页加几件今天要做的事，或者先在右栏随手记一笔。")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .padding(.vertical, 10)
+                VStack(alignment: .leading, spacing: 12) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 28, weight: .ultraLight))
+                        .foregroundStyle(.tertiary)
+                    Text("今天还没有安排")
+                        .font(.jzBody.weight(.medium))
+                    Text("可以先记录一件想完成的事，或从右侧收件箱整理待办。")
+                        .font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, minHeight: 126, alignment: .leading)
+                .padding(.vertical, 8)
             }
             // 无分隔线（定版规范），靠行距与 hover 高亮区分
             ForEach(calendar.events.filter { isToday($0.start) }) { event in
@@ -451,6 +485,10 @@ struct TodayView: View {
         }
         .padding(14)
         .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
+                .strokeBorder(JZ.separator.opacity(0.22), lineWidth: 0.5)
+        }
     }
 
     private func habitDetail(_ h: HabitItem) -> String {
@@ -500,5 +538,9 @@ struct TodayView: View {
         }
         .padding(14)
         .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
+                .strokeBorder(JZ.separator.opacity(0.22), lineWidth: 0.5)
+        }
     }
 }
