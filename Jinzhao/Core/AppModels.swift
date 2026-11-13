@@ -16,6 +16,8 @@ struct TaskItem: Identifiable, Codable, Equatable {
     var subtasks: [Subtask] = []
     /// 是否按农历重复（Pro）：如每年八月十五
     var lunarRepeat: Bool = false
+    /// 已手动同步的苹果日历事件 ID；不随任务完成状态变化而删除。
+    var calendarEventID: String? = nil
 
     struct Subtask: Identifiable, Codable, Equatable {
         var id = UUID()
