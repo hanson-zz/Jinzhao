@@ -214,6 +214,8 @@ struct AboutView: View {
 /// 设置（菜单栏「今朝 → 设置…」⌘,）：先落外观一项，与「前往」菜单共用同一设置
 struct SettingsView: View {
     @AppStorage(AppearanceSetting.storageKey) private var appearanceRaw: String = AppearanceSetting.system.rawValue
+    @AppStorage("jinzhao.taskCalendarSyncMode") private var taskCalendarSyncMode = "manual"
+    @EnvironmentObject private var calendar: CalendarService
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -231,6 +233,44 @@ struct SettingsView: View {
                 .labelsHidden()
                 .frame(width: 250)
             }
+            Divider()
+            Text("任务同步").font(.jzSection)
+            HStack {
+                Text("同步目标").font(.jzBody)
+                Spacer()
+                Label("苹果日历", systemImage: "calendar")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            HStack {
+                Text("同步方式").font(.jzBody)
+                Spacer()
+                Picker("同步方式", selection: $taskCalendarSyncMode) {
+                    Text("手动同步").tag("manual")
+                    Text("关闭").tag("off")
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+            }
+            HStack {
+                Text(calendar.authState == .authorized ? "日历访问已授权" : "日历尚未获得完整授权")
+                    .font(.jzCaption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if calendar.authState == .notDetermined {
+                    Button("连接苹果日历") {
+                        Task { await calendar.requestAccess() }
+                    }
+                    .glassButton()
+                } else if calendar.authState != .authorized {
+                    Button("日历权限设置") { calendar.openPrivacySettings() }
+                        .glassButton()
+                }
+            }
+            Text("在「任务」页为任务设置截止日期后，点击任务右侧的日历按钮才会写入苹果日历。每项任务关联同一个日程；完成或删除今朝任务不会自动删除日历事件。")
+                .font(.jzCaption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider()
             Text("数据保存在本机（~/Library/Application Support/Jinzhao），不联网上传，断网可用。")
                 .font(.jzCaption).foregroundStyle(.secondary)
             HStack {
@@ -241,6 +281,6 @@ struct SettingsView: View {
             }
         }
         .padding(JZ.spaceL)
-        .frame(width: 400)
+        .frame(width: 460)
     }
 }
