@@ -81,9 +81,9 @@ struct TodayView: View {
         let unfinished = store.tasks.filter { !$0.isDone }.count
         let checked = store.habits.filter { $0.isComplete }.count
         return HStack(spacing: 10) {
-            overviewMetric("待办任务", value: "\\(unfinished)", symbol: "checklist", color: JZ.accent)
-            overviewMetric("今日日程", value: "\\(events)", symbol: "calendar", color: JZ.teal)
-            overviewMetric("习惯打卡", value: "\\(checked)/\\(store.habits.count)", symbol: "circle.dotted.circle", color: JZ.warm)
+            overviewMetric("待办任务", value: "\(unfinished)", symbol: "checklist", color: JZ.accent)
+            overviewMetric("今日日程", value: "\(events)", symbol: "calendar", color: JZ.teal)
+            overviewMetric("习惯打卡", value: "\(checked)/\(store.habits.count)", symbol: "circle.dotted.circle", color: JZ.warm)
         }
     }
 
