@@ -68,41 +68,38 @@ struct TodayView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .background(JZ.cardBg.opacity(0.55), in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
-                .strokeBorder(JZ.separator.opacity(0.22), lineWidth: 0.5)
+                .strokeBorder(JZ.separator.opacity(0.34), lineWidth: 0.5)
         }
     }
 
-    /// 使用真实数据的简洁概览，不用演示任务填满空白。
+    /// 轻量状态栏而非三块灰色统计卡，避免在空数据时堆叠空容器。
     private var dailyOverview: some View {
         let events = calendar.events.filter { isToday($0.start) }.count
         let unfinished = store.tasks.filter { !$0.isDone }.count
         let checked = store.habits.filter { $0.isComplete }.count
-        return HStack(spacing: 10) {
-            overviewMetric("待办任务", value: "\(unfinished)", symbol: "checklist", color: JZ.accent)
-            overviewMetric("今日日程", value: "\(events)", symbol: "calendar", color: JZ.teal)
-            overviewMetric("习惯打卡", value: "\(checked)/\(store.habits.count)", symbol: "circle.dotted.circle", color: JZ.warm)
+        return HStack(spacing: 18) {
+            overviewMetric("待办", value: "\(unfinished)", symbol: "checkmark.circle", color: JZ.accent)
+            overviewMetric("日程", value: "\(events)", symbol: "calendar", color: JZ.teal)
+            overviewMetric("习惯", value: "\(checked)/\(store.habits.count)", symbol: "circle.dotted.circle", color: JZ.warm)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(JZ.separator.opacity(0.35)).frame(height: 0.5)
         }
     }
 
     private func overviewMetric(_ title: String, value: String, symbol: String, color: Color) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(color)
-                .frame(width: 32, height: 32)
-                .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value).font(.system(size: 17, weight: .semibold, design: .rounded))
-                Text(title).font(.jzCaption).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
+        HStack(spacing: 6) {
+            Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(color)
+            Text(value).font(.jzBody.weight(.semibold)).foregroundStyle(.primary)
+            Text(title).font(.jzCaption).foregroundStyle(.secondary)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: 13))
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     // MARK: 头部
@@ -316,7 +313,7 @@ struct TodayView: View {
                     }
                     .controlSize(.regular)
                 }
-                .frame(maxWidth: .infinity, minHeight: 220, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 156, alignment: .leading)
                 .padding(.vertical, 8)
             }
             // 无分隔线（定版规范），靠行距与 hover 高亮区分
