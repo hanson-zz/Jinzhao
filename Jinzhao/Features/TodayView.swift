@@ -529,10 +529,10 @@ struct TodayView: View {
             }
         }
         .padding(14)
-        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .background(JZ.cardBg.opacity(0.55), in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
-                .strokeBorder(JZ.separator.opacity(0.22), lineWidth: 0.5)
+                .strokeBorder(JZ.separator.opacity(0.30), lineWidth: 0.5)
         }
     }
 
@@ -582,10 +582,10 @@ struct TodayView: View {
             }
         }
         .padding(14)
-        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .background(JZ.cardBg.opacity(0.55), in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
-                .strokeBorder(JZ.separator.opacity(0.22), lineWidth: 0.5)
+                .strokeBorder(JZ.separator.opacity(0.30), lineWidth: 0.5)
         }
     }
 }
