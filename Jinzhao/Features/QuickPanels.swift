@@ -168,7 +168,8 @@ struct TodayFloatingView: View {
             Spacer(minLength: 0)
         }
         .padding(20)
-        .frame(width: 320, minHeight: 360, alignment: .topLeading)
+        .frame(width: 320)
+        .frame(minHeight: 360, alignment: .topLeading)
         .background(JZ.windowBg)
     }
 }
