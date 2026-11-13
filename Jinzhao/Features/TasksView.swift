@@ -3,6 +3,9 @@ import SwiftUI
 /// 任务页：添加（可带截止日期）/ 打勾 / 标重要 / 子任务 / 删除，全部即时落盘
 struct TasksView: View {
     @EnvironmentObject private var store: DataStore
+    @EnvironmentObject private var calendar: CalendarService
+    @AppStorage("jinzhao.taskCalendarSyncMode") private var calendarSyncMode = "manual"
+    @State private var syncNotice: String?
     @State private var newTitle = ""
     @State private var dueDate: Date? = nil      // 由中文日期解析或日历胶囊设置
     @State private var dueManual = false         // 手动选过日期后，输入解析不再覆盖
@@ -62,6 +65,11 @@ struct TasksView: View {
                 .padding(20)
             }
           }
+        }
+        .alert("苹果日历同步", isPresented: Binding(get: { syncNotice != nil }, set: { if !$0 { syncNotice = nil } })) {
+            Button("知道了", role: .cancel) { syncNotice = nil }
+        } message: {
+            Text(syncNotice ?? "")
         }
         // 菜单「新建任务」：外壳切到任务页后发来聚焦信号
         .onReceive(NotificationCenter.default.publisher(for: .jinzhaoFocusTaskField)) { _ in
@@ -182,6 +190,29 @@ struct TasksView: View {
         dueManual = false
     }
 
+    private func syncTask(_ task: TaskItem) {
+        guard calendarSyncMode == "manual" else {
+            syncNotice = "任务同步已在设置中关闭。"
+            return
+        }
+        do {
+            let outcome = try calendar.syncTaskToCalendar(task)
+            switch outcome {
+            case .created(let id):
+                if !id.isEmpty { store.linkCalendarEvent(taskID: task.id, eventID: id) }
+                syncNotice = "已创建苹果日历日程。再次点击会更新原日程，不会新建重复项。"
+            case .updated(let id):
+                if !id.isEmpty { store.linkCalendarEvent(taskID: task.id, eventID: id) }
+                syncNotice = "已更新原来的苹果日历日程。"
+            case .alreadyCurrent(let id):
+                if !id.isEmpty { store.linkCalendarEvent(taskID: task.id, eventID: id) }
+                syncNotice = "苹果日历已是最新内容，无需重复创建。"
+            }
+        } catch {
+            syncNotice = "同步失败：\(error.localizedDescription) 今朝本地任务没有被修改。"
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 8) {
             Image(systemName: "checklist").font(.largeTitle).foregroundStyle(.secondary)
@@ -237,6 +268,17 @@ struct TasksView: View {
                 }
                 .buttonStyle(.plain)
                 .help("标为重要")
+
+                if !task.isDone && task.dueDate != nil && calendarSyncMode == "manual" {
+                    Button {
+                        syncTask(task)
+                    } label: {
+                        Image(systemName: task.calendarEventID == nil ? "calendar.badge.plus" : "calendar.badge.checkmark")
+                            .foregroundStyle(task.calendarEventID == nil ? JZ.accent : JZ.success)
+                    }
+                    .buttonStyle(.plain)
+                    .help(task.calendarEventID == nil ? "手动同步到苹果日历" : "重新同步到苹果日历（更新原日程）")
+                }
 
                 if !task.subtasks.isEmpty || !task.isDone {
                     Button {
