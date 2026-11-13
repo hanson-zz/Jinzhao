@@ -98,6 +98,99 @@ final class CalendarService: ObservableObject {
         }
     }
 
+
+    // MARK: 手动将今朝任务写入苹果日历
+
+    enum TaskSyncOutcome {
+        case created(String)
+        case updated(String)
+        case alreadyCurrent(String)
+    }
+
+    enum TaskSyncError: LocalizedError {
+        case noPermission
+        case noDueDate
+        case noWritableCalendar
+        case linkedEventMissing
+        case duplicateMarkers
+
+        var errorDescription: String? {
+            switch self {
+            case .noPermission: return "请先在「日历」中授予今朝完整访问权限。"
+            case .noDueDate: return "请先为任务设置截止日期和时间，再手动同步。"
+            case .noWritableCalendar: return "苹果日历没有可写的默认日历，请在日历 App 设置默认日历。"
+            case .linkedEventMissing: return "此前同步的日历事件无法找到。为避免重复创建，请先检查苹果日历中的原事件。"
+            case .duplicateMarkers: return "检测到多个同一任务的日历事件。请先在苹果日历中检查重复事件，本次没有写入。"
+            }
+        }
+    }
+
+    /// 明确的单向手动写入：不自动同步、不删除日历事件、不修改今朝任务。
+    /// 幂等策略：优先 eventIdentifier，再通过事件 URL / 备注中稳定的任务 UUID 识别。
+    /// 一旦有旧链接但无法找到事件，宁可报错，也不冒险创建重复项。
+    func syncTaskToCalendar(_ task: TaskItem) throws -> TaskSyncOutcome {
+        guard authState == .authorized else { throw TaskSyncError.noPermission }
+        guard let due = task.dueDate else { throw TaskSyncError.noDueDate }
+        guard let target = store.defaultCalendarForNewEvents, target.allowsContentModifications else {
+            throw TaskSyncError.noWritableCalendar
+        }
+
+        let marker = "JinzhaoTaskID:\(task.id.uuidString.lowercased())"
+        let markerURL = URL(string: "jinzhao-task://task/\(task.id.uuidString.lowercased())")!
+        let matches = findMatchingEvents(near: due, marker: marker, markerURL: markerURL)
+        if matches.count > 1 { throw TaskSyncError.duplicateMarkers }
+
+        let linked: EKEvent?
+        if let identifier = task.calendarEventID {
+            // Never overwrite an unrelated event if macOS reuses a stale identifier.
+            if let candidate = store.event(withIdentifier: identifier), hasMarker(candidate, marker: marker, markerURL: markerURL) {
+                linked = candidate
+            } else if let match = matches.first {
+                linked = match
+            } else {
+                throw TaskSyncError.linkedEventMissing
+            }
+        } else {
+            linked = matches.first
+        }
+
+        let event = linked ?? EKEvent(eventStore: store)
+        if linked == nil {
+            event.calendar = target
+            event.url = markerURL
+            event.notes = "[\(marker)]\n创建自今朝任务；请在今朝中管理任务本身。"
+        }
+
+        let start = due
+        let end = due.addingTimeInterval(30 * 60)
+        let desiredTitle = task.title
+        if linked != nil && event.title == desiredTitle && event.startDate == start && event.endDate == end {
+            return .alreadyCurrent(event.eventIdentifier ?? task.calendarEventID ?? "")
+        }
+        event.title = desiredTitle
+        event.startDate = start
+        event.endDate = end
+        event.isAllDay = false
+        try store.save(event, span: .thisEvent)
+        refresh()
+        let savedID = event.eventIdentifier ?? ""
+        return linked == nil ? .created(savedID) : .updated(savedID)
+    }
+
+    private func hasMarker(_ event: EKEvent, marker: String, markerURL: URL) -> Bool {
+        event.url?.absoluteString == markerURL.absoluteString ||
+            (event.notes?.contains("[\(marker)]") ?? false)
+    }
+
+    private func findMatchingEvents(near due: Date, marker: String, markerURL: URL) -> [EKEvent] {
+        let start = due.addingTimeInterval(-24 * 60 * 60)
+        let end = due.addingTimeInterval(24 * 60 * 60)
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        return store.events(matching: predicate).filter {
+            hasMarker($0, marker: marker, markerURL: markerURL)
+        }
+    }
+
     // MARK: 映射与会议识别
 
     private static func map(_ event: EKEvent) -> CalendarEventItem {
