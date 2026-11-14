@@ -101,6 +101,7 @@ struct TodayFloatingView: View {
     @EnvironmentObject private var store: DataStore
     @EnvironmentObject private var calendar: CalendarService
     @AppStorage("jinzhao.floatingStickyExpanded") private var expanded = false
+    @AppStorage("jinzhao.floatingStickyAlwaysOnTop") private var alwaysOnTop = false
     @State private var draft = ""
 
     /// 浮窗只展示当日及无截止日期的待办，避免把远期计划全部堆上桌面。
@@ -127,6 +128,15 @@ struct TodayFloatingView: View {
                         .font(.jzCaption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                Button {
+                    alwaysOnTop.toggle()
+                } label: {
+                    Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                        .font(.system(size: 13))
+                        .foregroundStyle(alwaysOnTop ? Color.orange : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(alwaysOnTop ? "取消置顶" : "将便签保持在其他窗口上方")
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         expanded.toggle()
@@ -221,6 +231,7 @@ struct TodayFloatingView: View {
         }
         .padding(18)
         .frame(width: 310, alignment: .topLeading)
+        .background(TodayNoteWindowBehavior(alwaysOnTop: alwaysOnTop))
         .background(
             RoundedRectangle(cornerRadius: 19, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
