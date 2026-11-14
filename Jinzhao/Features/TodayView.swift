@@ -7,6 +7,7 @@ struct TodayView: View {
     @EnvironmentObject private var calendar: CalendarService
     @Environment(\.holidayService) private var holidays
     @State private var mode: Mode = .list
+    @AppStorage("jinzhao.todayStickyExpanded") private var stickyExpanded = false
 
     enum Mode: String, CaseIterable { case list = "列表", timeline = "时间轴", board = "看板" }
 
@@ -58,21 +59,112 @@ struct TodayView: View {
         }
     }
 
+    /// 今日便签：默认压缩为摘要；展开仍复用原来的完整任务与日程列表。
+    /// 不引入新的存储模型，所有勾选继续写入 DataStore。
     private var primaryPanel: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 9) {
+                Image(systemName: "note.text")
+                    .foregroundStyle(Color.orange)
+                    .font(.system(size: 17, weight: .medium))
+                Text("今天的便签")
+                    .font(.jzSection)
+                Text("\(displayTasks.filter { !$0.isDone }.count) 项待办")
+                    .font(.jzCaption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.20)) { stickyExpanded.toggle() }
+                } label: {
+                    Label(stickyExpanded ? "收起" : "展开",
+                          systemImage: stickyExpanded ? "chevron.up" : "chevron.down")
+                        .font(.jzCaption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(stickyExpanded ? "收起今日便签" : "展开完整今日任务与日程")
+            }
             if mode == .list {
-                todayList
+                if stickyExpanded {
+                    todayList
+                } else {
+                    compactStickyContent
+                }
             } else {
                 comingSoonPanel
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(JZ.cardBg.opacity(0.55), in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
+                        .fill(Color.orange.opacity(0.055))
+                }
+        )
         .overlay {
             RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
-                .strokeBorder(JZ.separator.opacity(0.34), lineWidth: 0.5)
+                .strokeBorder(Color.orange.opacity(0.17), lineWidth: 0.7)
         }
+    }
+
+    private var compactStickyContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let unfinished = displayTasks.filter { !$0.isDone }
+            if unfinished.isEmpty {
+                Text("给今天留一点空间，想到的事随手记下。")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(unfinished.prefix(3)) { task in
+                    HStack(spacing: 9) {
+                        Button {
+                            store.toggleTask(task)
+                        } label: {
+                            Image(systemName: "circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        Text(task.title)
+                            .font(.jzBody)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                }
+                if unfinished.count > 3 {
+                    Text("另有 \(unfinished.count - 3) 项，展开查看")
+                        .font(.jzCaption).foregroundStyle(.secondary)
+                }
+            }
+            let dayEvents = calendar.events.filter { isToday($0.start) }
+            if !dayEvents.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar").foregroundStyle(.secondary)
+                    Text("还有 \(dayEvents.count) 项今日日程")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.jzCaption)
+            }
+            HStack(spacing: 10) {
+                Button {
+                    NotificationCenter.default.post(name: .jinzhaoNewTask, object: nil)
+                } label: {
+                    Label("添加任务", systemImage: "plus")
+                }
+                .glassButton()
+                .controlSize(.small)
+                Button {
+                    NotificationCenter.default.post(name: .jinzhaoQuickCapture, object: nil)
+                } label: {
+                    Label("随手记录", systemImage: "square.and.pencil")
+                }
+                .glassButton()
+                .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     /// 轻量状态栏而非三块灰色统计卡，避免在空数据时堆叠空容器。
