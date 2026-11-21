@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// 统计范围：7 天 / 30 天 / 12 周（完成率、第三个数字、热力图跨度一起变）
+enum HabitRange: String, CaseIterable, Identifiable {
+    case days7 = "7 天", days30 = "30 天", weeks12 = "12 周"
+    var id: String { rawValue }
+    var days: Int { switch self { case .days7: 7; case .days30: 30; case .weeks12: 84 } }
+    var weeks: Int { switch self { case .days7: 1; case .days30: 5; case .weeks12: 12 } }
+    var shortLabel: String { switch self { case .days7: "7天"; case .days30: "30天"; case .weeks12: "12周" } }
+    var rateLabel: String { switch self { case .days7: "近 7 天完成率"; case .days30: "近 30 天完成率"; case .weeks12: "近 12 周完成率" } }
+    var heatLabel: String { switch self { case .days7: "本周"; case .days30: "近 5 周"; case .weeks12: "近 12 周" } }
+}
+
 /// 习惯统计页：每个习惯一张卡——今日打卡、连续天数、最长连续、近 30 天完成率、近 12 周热力图
 struct HabitsView: View {
     @EnvironmentObject private var store: DataStore
@@ -7,6 +18,8 @@ struct HabitsView: View {
     @State private var newTarget = 1
     @State private var newUnit = ""
     @State private var editing: HabitItem?
+    @AppStorage("jinzhao.habitRange") private var rangeRaw = HabitRange.days30.rawValue
+    private var range: HabitRange { HabitRange(rawValue: rangeRaw) ?? .days30 }
 
     var body: some View {
         SolidCard {
@@ -19,7 +32,7 @@ struct HabitsView: View {
                     } else {
                         summary
                         ForEach(store.habits) { h in
-                            HabitStatsCard(habit: h, onEdit: { editing = h })
+                            HabitStatsCard(habit: h, range: range, onEdit: { editing = h })
                         }
                     }
                 }
@@ -37,6 +50,12 @@ struct HabitsView: View {
             Text("今天完成 \(store.habits.filter { $0.isComplete }.count)/\(store.habits.count)")
                 .font(.callout).foregroundStyle(.secondary)
             Spacer()
+            Picker("范围", selection: $rangeRaw) {
+                ForEach(HabitRange.allCases) { r in Text(LocalizedStringKey(r.rawValue)).tag(r.rawValue) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 220)
         }
     }
 
@@ -68,9 +87,10 @@ struct HabitsView: View {
 
     private var summary: some View {
         let stats = store.habits.map { HabitStats(habit: $0) }
-        let hits = stats.map { $0.hits(days: 30) }
+        let n = range.days
+        let hits = stats.map { $0.hits(days: n) }
         let avgHits = hits.isEmpty ? 0 : Int((Double(hits.reduce(0, +)) / Double(hits.count)).rounded())
-        let avg = Double(avgHits) / 30
+        let avg = Double(avgHits) / Double(n)
         let best = stats.map { $0.longestStreak }.max() ?? 0
         let current = store.habits.map { $0.streakDays }.max() ?? 0
         return HStack(spacing: 12) {
@@ -84,8 +104,8 @@ struct HabitsView: View {
                 }
                 .frame(width: 64, height: 64)
             } text: {
-                Text("近 30 天完成率").font(.system(size: 14, weight: .semibold))
-                Text("\(avgHits) / 30 天").font(.system(size: 13)).foregroundStyle(.secondary).monospacedDigit()
+                Text(LocalizedStringKey(range.rateLabel)).font(.system(size: 14, weight: .semibold))
+                Text("\(avgHits) / \(n) 天").font(.system(size: 13)).foregroundStyle(.secondary).monospacedDigit()
             }
             summaryCard {
                 iconBadge("flame.fill")
@@ -203,6 +223,7 @@ struct HabitStats {
 
 private struct HabitStatsCard: View {
     let habit: HabitItem
+    var range: HabitRange = .days30
     let onEdit: () -> Void
     @EnvironmentObject private var store: DataStore
     private var cal: Calendar {
@@ -214,7 +235,7 @@ private struct HabitStatsCard: View {
     var body: some View {
         let stats = HabitStats(habit: habit)
         let done = stats.doneSet
-        let hits = stats.hits(days: 30)
+        let hits = stats.hits(days: range.days)
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
                 Button { store.advanceHabit(habit) } label: {
@@ -249,7 +270,7 @@ private struct HabitStatsCard: View {
                 divider
                 stat("最长", "\(stats.longestStreak)", suffix: "天")
                 divider
-                stat("30天", "\(hits)", suffix: "天（\(Int((Double(hits) / 30 * 100).rounded()))%）")
+                stat(range.shortLabel, "\(hits)", suffix: "天（\(Int((Double(hits) / Double(range.days) * 100).rounded()))%）")
                 Menu {
                     Button("编辑…", action: onEdit)
                     Divider()
@@ -295,12 +316,13 @@ private struct HabitStatsCard: View {
     private func heatmap(_ done: Set<String>) -> some View {
         let today = cal.startOfDay(for: Date())
         let mondayThisWeek = cal.dateInterval(of: .weekOfYear, for: today)?.start ?? today
-        let firstMonday = cal.date(byAdding: .day, value: -7 * 11, to: mondayThisWeek) ?? today
+        let weeks = range.weeks
+        let firstMonday = cal.date(byAdding: .day, value: -7 * (weeks - 1), to: mondayThisWeek) ?? today
         return HStack(alignment: .top, spacing: 10) {
-            Text("近 12 周").font(.system(size: 12)).foregroundStyle(.secondary)
+            Text(LocalizedStringKey(range.heatLabel)).font(.system(size: 12)).foregroundStyle(.secondary)
                 .frame(width: 52, alignment: .leading)
                 .padding(.top, 1)
-            ForEach(0..<12, id: \.self) { week in
+            ForEach(0..<weeks, id: \.self) { week in
                 let monday = cal.date(byAdding: .day, value: week * 7, to: firstMonday) ?? today
                 VStack(spacing: 5) {
                     HStack(spacing: 2) {
@@ -310,7 +332,7 @@ private struct HabitStatsCard: View {
                             let hit = done.contains(DataStore.key(for: d))
                             RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                                 .fill(future ? JZ.controlFill.opacity(0.4) : (hit ? JZ.accent : JZ.controlFill))
-                                .frame(height: 14)
+                                .frame(height: weeks == 1 ? 22 : 14)
                                 .overlay {
                                     if cal.isDate(d, inSameDayAs: today) {
                                         RoundedRectangle(cornerRadius: 2.5).strokeBorder(Color.primary.opacity(0.5), lineWidth: 1)

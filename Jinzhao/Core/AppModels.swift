@@ -94,13 +94,18 @@ struct NoteItem: Identifiable, Codable, Equatable {
 
 struct NoteBlock: Identifiable, Codable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case text, heading, bullet, todo
+        case text, heading, bullet, todo, numbered, quote, image, table, divider
         var label: String {
             switch self {
             case .text: return "正文"
             case .heading: return "标题"
             case .bullet: return "列表"
             case .todo: return "待办"
+            case .numbered: return "编号列表"
+            case .quote: return "引用"
+            case .image: return "图片"
+            case .table: return "表格"
+            case .divider: return "分割线"
             }
         }
         var symbol: String {
@@ -109,8 +114,17 @@ struct NoteBlock: Identifiable, Codable, Equatable {
             case .heading: return "textformat.size"
             case .bullet: return "list.bullet"
             case .todo: return "checkmark.square"
+            case .numbered: return "list.number"
+            case .quote: return "text.quote"
+            case .image: return "photo"
+            case .table: return "tablecells"
+            case .divider: return "minus"
             }
         }
+        /// 能在里面打字的块（图片 / 表格 / 分割线不能）
+        var isTextual: Bool { ![.image, .table, .divider].contains(self) }
+        /// 文字块之间可以互相切换的样式
+        static let textKinds: [Kind] = [.text, .heading, .bullet, .numbered, .todo, .quote]
     }
     var id = UUID()
     var kind: Kind = .text
@@ -118,6 +132,18 @@ struct NoteBlock: Identifiable, Codable, Equatable {
     var isDone: Bool? = nil
     /// 转成任务后记下任务 ID，避免重复转
     var linkedTaskID: UUID? = nil
+    /// 整行样式：加粗 / 斜体 / 下划线 / 删除线 / 文字颜色（颜色名，见 NoteBlock.colorNames）
+    var bold: Bool? = nil
+    var italic: Bool? = nil
+    var underline: Bool? = nil
+    var strike: Bool? = nil
+    var color: String? = nil
+    /// 图片块：存在「应用支持/Jinzhao/NoteImages/」下的文件名
+    var imageFile: String? = nil
+    /// 表格块：第一行是表头
+    var table: [[String]]? = nil
+
+    static let colorNames = ["red", "orange", "green", "blue", "purple", "gray"]
 }
 
 // 演示数据（DemoStore）已于第三片移除，真实数据见 DataStore（本地 JSON 落盘）。

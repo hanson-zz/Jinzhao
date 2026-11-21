@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 /// 笔记页：左侧笔记列表 + 右侧块编辑器
 /// 块：正文 / 标题 / 列表 / 待办；行首输入「# 」「- 」「[] 」自动转换；待办可一键转成任务
@@ -175,11 +177,16 @@ private struct NoteEditor: View {
     @EnvironmentObject private var store: DataStore
     @FocusState private var focused: UUID?
     @FocusState private var titleFocused: Bool
+    /// 最近一次获得焦点的块：点工具栏按钮时焦点可能已经离开输入框，以它为准
+    @State private var current: UUID?
 
     private var note: NoteItem? { store.notes.first { $0.id == noteID } }
 
     var body: some View {
         if let note {
+            VStack(spacing: 0) {
+            NoteToolbar(noteID: noteID, current: $current, focused: $focused)
+            Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     TextField("标题", text: titleBinding, axis: .vertical)
@@ -190,8 +197,8 @@ private struct NoteEditor: View {
                     Text(metaLine(note)).font(.system(size: 12)).foregroundStyle(.secondary)
                         .padding(.top, 2)
                     Divider().padding(.vertical, 10)
-                    ForEach(note.blocks) { block in
-                        BlockRow(noteID: noteID, block: block, focused: $focused)
+                    ForEach(Array(note.blocks.enumerated()), id: \.element.id) { i, block in
+                        BlockRow(noteID: noteID, block: block, number: Self.number(at: i, in: note.blocks), focused: $focused)
                     }
                     Button {
                         appendBlock()
@@ -207,10 +214,20 @@ private struct NoteEditor: View {
                 .frame(maxWidth: 760, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            }
             .onAppear {
                 if note.title.isEmpty && note.plainText.isEmpty { titleFocused = true }
             }
+            .onChange(of: focused) { _, v in if let v { current = v } }
         }
+    }
+
+    /// 编号列表的序号：从连续一段编号块的第一块数起
+    static func number(at i: Int, in blocks: [NoteBlock]) -> Int {
+        guard blocks[i].kind == .numbered else { return 0 }
+        var n = 1, j = i - 1
+        while j >= 0 && blocks[j].kind == .numbered { n += 1; j -= 1 }
+        return n
     }
 
     private var titleBinding: Binding<String> {
@@ -287,6 +304,7 @@ private struct NoteEditor: View {
 private struct BlockRow: View {
     let noteID: UUID
     let block: NoteBlock
+    var number: Int = 0
     var focused: FocusState<UUID?>.Binding
     @EnvironmentObject private var store: DataStore
     @State private var hovering = false
@@ -299,8 +317,10 @@ private struct BlockRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Menu {
-                ForEach(NoteBlock.Kind.allCases, id: \.self) { k in
-                    Button { setKind(k) } label: { Label(k.label, systemImage: k.symbol) }
+                if block.kind.isTextual {
+                    ForEach(NoteBlock.Kind.textKinds, id: \.self) { k in
+                        Button { setKind(k) } label: { Label(k.label, systemImage: k.symbol) }
+                    }
                 }
                 Divider()
                 Button("删除这一行", role: .destructive) { delete() }
@@ -313,11 +333,24 @@ private struct BlockRow: View {
             .opacity(hovering ? 0.7 : 0)
 
             leading
+            switch block.kind {
+            case .image:
+                NoteImageBlock(noteID: noteID, block: block)
+            case .table:
+                NoteTableBlock(noteID: noteID, block: block)
+            case .divider:
+                Rectangle().fill(JZ.separator).frame(height: 1)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] }
+            default:
             TextField(placeholder, text: textBinding, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(font)
-                .strikethrough(block.kind == .todo && (block.isDone ?? false))
-                .foregroundStyle(block.kind == .todo && (block.isDone ?? false) ? .secondary : .primary)
+                .italic(block.italic ?? false)
+                .underline(block.underline ?? false)
+                .strikethrough((block.kind == .todo && (block.isDone ?? false)) || (block.strike ?? false))
+                .foregroundStyle(textColor)
                 .focused(focused, equals: block.id)
                 .onSubmit { insertBelow() }
                 .onKeyPress(.delete) {
@@ -325,6 +358,7 @@ private struct BlockRow: View {
                     delete()
                     return .handled
                 }
+            }
             if block.kind == .todo {
                 if taskExists {
                     Label("已转任务", systemImage: "checkmark.circle")
@@ -347,6 +381,7 @@ private struct BlockRow: View {
         }
         .padding(.vertical, block.kind == .heading ? 8 : (block.kind == .todo ? 5 : 2))
         .padding(.horizontal, block.kind == .todo ? 6 : 0)
+        .padding(.leading, block.kind == .quote ? 4 : 0)
         .background(block.kind == .todo && hovering ? JZ.accent.opacity(0.07) : Color.clear,
                     in: RoundedRectangle(cornerRadius: 8))
         .onHover { hovering = $0 }
@@ -360,6 +395,13 @@ private struct BlockRow: View {
         case .bullet:
             Circle().fill(JZ.accent).frame(width: 5, height: 5)
                 .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 4 }
+        case .numbered:
+            Text("\(number).").font(.system(size: 14.5, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(JZ.accent)
+                .frame(minWidth: 18, alignment: .trailing)
+        case .quote:
+            RoundedRectangle(cornerRadius: 1.5).fill(Color.secondary.opacity(0.5)).frame(width: 3, height: 18)
+                .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 5 }
         case .todo:
             Button {
                 store.updateNote(noteID) { n in
@@ -379,15 +421,24 @@ private struct BlockRow: View {
     }
 
     private var font: Font {
-        block.kind == .heading ? .system(size: 18, weight: .bold) : .system(size: 14.5)
+        if block.kind == .heading { return .system(size: 18, weight: .bold) }
+        return .system(size: 14.5, weight: (block.bold ?? false) ? .bold : .regular)
+    }
+
+    private var textColor: Color {
+        if block.kind == .todo && (block.isDone ?? false) { return .secondary }
+        if block.kind == .quote && block.color == nil { return .secondary }
+        return NoteToolbar.color(block.color) ?? .primary
     }
 
     private var placeholder: String {
         switch block.kind {
         case .heading: return "标题"
         case .todo: return "待办"
-        case .bullet: return "列表项"
-        case .text: return "输入文字，「# 」标题 「- 」列表 「[] 」待办"
+        case .bullet, .numbered: return "列表项"
+        case .quote: return "引用"
+        case .text: return "输入文字，「# 」标题 「- 」列表 「1. 」编号 「[] 」待办 「> 」引用"
+        default: return ""
         }
     }
 
@@ -401,6 +452,9 @@ private struct BlockRow: View {
                 else if v.hasPrefix("- ") || v.hasPrefix("* ") { kind = .bullet; v.removeFirst(2) }
                 else if v.hasPrefix("[] ") { kind = .todo; v.removeFirst(3) }
                 else if v.hasPrefix("[ ] ") { kind = .todo; v.removeFirst(4) }
+                else if v.hasPrefix("1. ") { kind = .numbered; v.removeFirst(3) }
+                else if v.hasPrefix("> ") { kind = .quote; v.removeFirst(2) }
+                else if v == "---" { kind = .divider; v = "" }
             }
             // 多行粘贴/换行：拆成多块
             let lines = v.components(separatedBy: "\n")
@@ -429,11 +483,12 @@ private struct BlockRow: View {
     private func insertBelow() {
         // 列表/待办回车延续同类；空的列表/待办回车变回正文
         let k: NoteBlock.Kind
-        if (block.kind == .bullet || block.kind == .todo) && block.text.isEmpty {
+        let continuing: [NoteBlock.Kind] = [.bullet, .todo, .numbered]
+        if continuing.contains(block.kind) && block.text.isEmpty {
             setKind(.text)
             return
         }
-        k = (block.kind == .bullet || block.kind == .todo) ? block.kind : .text
+        k = continuing.contains(block.kind) ? block.kind : .text
         let nb = NoteBlock(kind: k, text: "", isDone: k == .todo ? false : nil)
         store.updateNote(noteID) { n in
             let i = n.blocks.firstIndex(where: { $0.id == block.id }) ?? (n.blocks.count - 1)
@@ -451,5 +506,363 @@ private struct BlockRow: View {
             n.blocks.remove(at: i)
         }
         DispatchQueue.main.async { focused.wrappedValue = prev }
+    }
+}
+
+// MARK: - 工具栏
+
+private struct NoteToolbar: View {
+    let noteID: UUID
+    @Binding var current: UUID?
+    var focused: FocusState<UUID?>.Binding
+    @EnvironmentObject private var store: DataStore
+
+    private var note: NoteItem? { store.notes.first { $0.id == noteID } }
+    private var block: NoteBlock? {
+        guard let id = current else { return nil }
+        return note?.blocks.first { $0.id == id }
+    }
+
+    static func color(_ name: String?) -> Color? {
+        switch name {
+        case "red": return .red
+        case "orange": return JZ.accent
+        case "green": return .green
+        case "blue": return .blue
+        case "purple": return .purple
+        case "gray": return .gray
+        default: return nil
+        }
+    }
+    static let colorLabels: [String: String] = ["red": "红色", "orange": "橙色", "green": "绿色", "blue": "蓝色", "purple": "紫色", "gray": "灰色"]
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Menu {
+                ForEach(NoteBlock.Kind.textKinds, id: \.self) { k in
+                    Button { setKind(k) } label: { Label(k.label, systemImage: k.symbol) }
+                }
+            } label: {
+                Text(LocalizedStringKey(block?.kind.isTextual == true ? block!.kind.label : "正文"))
+                    .font(.system(size: 12))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(JZ.controlFill, in: RoundedRectangle(cornerRadius: 6))
+            .help("文字样式")
+
+            sep
+            toggle("bold", "加粗", \.bold)
+            toggle("italic", "斜体", \.italic)
+            toggle("underline", "下划线", \.underline)
+            toggle("strikethrough", "删除线", \.strike)
+            Menu {
+                Button("默认颜色") { mutate { $0.color = nil } }
+                Divider()
+                ForEach(NoteBlock.colorNames, id: \.self) { c in
+                    Button(Self.colorLabels[c] ?? c) { mutate { $0.color = c } }
+                }
+            } label: {
+                Image(systemName: "character").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Self.color(block?.color) ?? .primary)
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .frame(width: 28, height: 24)
+            .help("文字颜色")
+
+            sep
+            icon("checkmark.square", "待办") { setKind(.todo) }
+            icon("list.bullet", "列表") { setKind(.bullet) }
+            icon("list.number", "编号列表") { setKind(.numbered) }
+            icon("tablecells", "插入表格") { insert(NoteBlock(kind: .table, table: [["", "", ""], ["", "", ""], ["", "", ""]])) }
+            icon("photo", "插入图片") { pickImage() }
+
+            Menu {
+                Button { setKind(.quote) } label: { Label("引用", systemImage: "text.quote") }
+                Button { insert(NoteBlock(kind: .divider)) } label: { Label("分割线", systemImage: "minus") }
+                Divider()
+                Button("拷贝为 Markdown") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(markdown, forType: .string)
+                }
+                Button("导出 Markdown 文件…") { exportMarkdown() }
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 13))
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .frame(width: 28, height: 24)
+            .help("更多")
+
+            Spacer()
+            ShareLink(item: markdown, subject: Text(note?.title ?? ""), preview: SharePreview(note?.title.isEmpty == false ? note!.title : "笔记")) {
+                Image(systemName: "square.and.arrow.up").font(.system(size: 13))
+            }
+            .buttonStyle(.plain)
+            .frame(width: 28, height: 24)
+            .help("分享")
+        }
+        .padding(.horizontal, 16).padding(.vertical, 8)
+    }
+
+    private var sep: some View {
+        Rectangle().fill(JZ.separator).frame(width: 0.5, height: 16).padding(.horizontal, 4)
+    }
+
+    private func icon(_ symbol: String, _ help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 13))
+                .frame(width: 28, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverHighlight()
+        .help(LocalizedStringKey(help))
+    }
+
+    private func toggle(_ symbol: String, _ help: String, _ key: WritableKeyPath<NoteBlock, Bool?>) -> some View {
+        let on = block?[keyPath: key] ?? false
+        return Button {
+            mutate { $0[keyPath: key] = ($0[keyPath: key] ?? false) ? nil : true }
+        } label: {
+            Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(on ? JZ.accent : Color.primary)
+                .frame(width: 28, height: 24)
+                .background(on ? JZ.accent.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(LocalizedStringKey(help + "（整行）"))
+        .disabled(block?.kind.isTextual != true)
+    }
+
+    /// 改当前块；没有选中块时改最后一块
+    private func mutate(_ change: (inout NoteBlock) -> Void) {
+        store.updateNote(noteID) { n in
+            let i = current.flatMap { id in n.blocks.firstIndex { $0.id == id } } ?? (n.blocks.isEmpty ? nil : n.blocks.count - 1)
+            guard let i, n.blocks[i].kind.isTextual else { return }
+            change(&n.blocks[i])
+        }
+        if let current { DispatchQueue.main.async { focused.wrappedValue = current } }
+    }
+
+    private func setKind(_ k: NoteBlock.Kind) {
+        if block == nil || block?.kind.isTextual != true {
+            insert(NoteBlock(kind: k, isDone: k == .todo ? false : nil))
+            return
+        }
+        mutate { b in
+            b.kind = (b.kind == k && k != .text) ? .text : k
+            if b.kind == .todo && b.isDone == nil { b.isDone = false }
+        }
+    }
+
+    /// 在当前块下面插入；新块是文字块就把光标放进去，其他块后面补一行空正文
+    private func insert(_ nb: NoteBlock) {
+        var follow: NoteBlock? = nil
+        store.updateNote(noteID) { n in
+            let i = current.flatMap { id in n.blocks.firstIndex { $0.id == id } } ?? (n.blocks.count - 1)
+            var at = i + 1
+            // 当前块是空正文就直接替换掉
+            if i >= 0 && i < n.blocks.count && n.blocks[i].kind == .text && n.blocks[i].text.isEmpty && !nb.kind.isTextual {
+                n.blocks[i] = nb; at = i + 1
+            } else {
+                n.blocks.insert(nb, at: max(0, min(at, n.blocks.count)))
+                at += 1
+            }
+            if !nb.kind.isTextual {
+                let t = NoteBlock()
+                n.blocks.insert(t, at: min(at, n.blocks.count))
+                follow = t
+            }
+        }
+        let target = nb.kind.isTextual ? nb.id : follow?.id
+        DispatchQueue.main.async {
+            focused.wrappedValue = target
+            current = target
+        }
+    }
+
+    private func pickImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.prompt = "插入"
+        guard panel.runModal() == .OK, let url = panel.url,
+              let name = NoteImageStore.importImage(from: url) else { return }
+        insert(NoteBlock(kind: .image, imageFile: name))
+    }
+
+    var markdown: String { note.map(NoteMarkdown.render) ?? "" }
+
+    private func exportMarkdown() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        let title = note?.title.isEmpty == false ? note!.title : "笔记"
+        panel.nameFieldStringValue = title + ".md"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? markdown.write(to: url, atomically: true, encoding: .utf8)
+    }
+}
+
+// MARK: - 图片块
+
+enum NoteImageStore {
+    static var dir: URL {
+        let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Jinzhao/NoteImages", isDirectory: true)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }
+
+    /// 复制进 App 自己的目录，原图删了也不丢
+    static func importImage(from url: URL) -> String? {
+        let ext = url.pathExtension.isEmpty ? "png" : url.pathExtension.lowercased()
+        let name = UUID().uuidString + "." + ext
+        do {
+            try FileManager.default.copyItem(at: url, to: dir.appendingPathComponent(name))
+            return name
+        } catch { return nil }
+    }
+
+    static func url(_ name: String) -> URL { dir.appendingPathComponent(name) }
+}
+
+private struct NoteImageBlock: View {
+    let noteID: UUID
+    let block: NoteBlock
+    @EnvironmentObject private var store: DataStore
+
+    var body: some View {
+        Group {
+            if let name = block.imageFile, let img = NSImage(contentsOf: NoteImageStore.url(name)) {
+                Image(nsImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: min(img.size.width, 620), alignment: .leading)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(JZ.separator.opacity(0.4), lineWidth: 0.5) }
+            } else {
+                Label("图片找不到了", systemImage: "photo.badge.exclamationmark")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .padding(12)
+                    .background(JZ.controlFill, in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+        .contextMenu {
+            if let name = block.imageFile {
+                Button("在访达中显示") { NSWorkspace.shared.activateFileViewerSelecting([NoteImageStore.url(name)]) }
+            }
+        }
+    }
+}
+
+// MARK: - 表格块
+
+private struct NoteTableBlock: View {
+    let noteID: UUID
+    let block: NoteBlock
+    @EnvironmentObject private var store: DataStore
+
+    private var rows: [[String]] { block.table ?? [[""]] }
+
+    var body: some View {
+        let cols = rows.map { $0.count }.max() ?? 1
+        VStack(alignment: .leading, spacing: 6) {
+            Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+                ForEach(0..<rows.count, id: \.self) { r in
+                    GridRow {
+                        ForEach(0..<cols, id: \.self) { c in
+                            TextField(r == 0 ? "表头" : "", text: cell(r, c), axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 13.5, weight: r == 0 ? .semibold : .regular))
+                                .padding(.horizontal, 8).padding(.vertical, 6)
+                                .frame(minWidth: 90, maxWidth: .infinity, alignment: .leading)
+                                .background(r == 0 ? JZ.accent.opacity(0.08) : Color.clear)
+                                .overlay { Rectangle().strokeBorder(JZ.separator.opacity(0.6), lineWidth: 0.5) }
+                        }
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(JZ.separator.opacity(0.8), lineWidth: 0.5) }
+            HStack(spacing: 12) {
+                Button("+ 行") { edit { t in t.append(Array(repeating: "", count: cols)) } }
+                Button("+ 列") { edit { t in for i in t.indices { t[i].append("") } } }
+                Button("− 行") { edit { t in if t.count > 1 { t.removeLast() } } }
+                Button("− 列") { edit { t in for i in t.indices where t[i].count > 1 { t[i].removeLast() } } }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+
+    private func cell(_ r: Int, _ c: Int) -> Binding<String> {
+        Binding(get: {
+            let t = rows
+            return r < t.count && c < t[r].count ? t[r][c] : ""
+        }, set: { v in
+            edit { t in
+                while t.count <= r { t.append([]) }
+                while t[r].count <= c { t[r].append("") }
+                t[r][c] = v.replacingOccurrences(of: "\n", with: " ")
+            }
+        })
+    }
+
+    private func edit(_ change: (inout [[String]]) -> Void) {
+        store.updateNote(noteID) { n in
+            guard let i = n.blocks.firstIndex(where: { $0.id == block.id }) else { return }
+            var t = n.blocks[i].table ?? [[""]]
+            change(&t)
+            n.blocks[i].table = t
+        }
+    }
+}
+
+// MARK: - Markdown 导出
+
+enum NoteMarkdown {
+    static func render(_ n: NoteItem) -> String {
+        var out: [String] = []
+        if !n.title.isEmpty { out.append("# " + n.title); out.append("") }
+        var num = 0
+        for b in n.blocks {
+            num = b.kind == .numbered ? num + 1 : 0
+            var t = b.text
+            if b.kind.isTextual && !t.isEmpty {
+                if b.bold ?? false { t = "**\(t)**" }
+                if b.italic ?? false { t = "*\(t)*" }
+                if b.strike ?? false { t = "~~\(t)~~" }
+            }
+            switch b.kind {
+            case .text: out.append(t)
+            case .heading: out.append("## " + t)
+            case .bullet: out.append("- " + t)
+            case .numbered: out.append("\(num). " + t)
+            case .todo: out.append(((b.isDone ?? false) ? "- [x] " : "- [ ] ") + t)
+            case .quote: out.append("> " + t)
+            case .divider: out.append("---")
+            case .image:
+                if let f = b.imageFile { out.append("![](\(NoteImageStore.url(f).absoluteString))") }
+            case .table:
+                let rows = b.table ?? []
+                guard let head = rows.first else { continue }
+                let cols = rows.map { $0.count }.max() ?? head.count
+                func line(_ r: [String]) -> String {
+                    "| " + (0..<cols).map { $0 < r.count ? r[$0].replacingOccurrences(of: "|", with: "\\|") : "" }.joined(separator: " | ") + " |"
+                }
+                out.append(""); out.append(line(head))
+                out.append("|" + Array(repeating: " --- |", count: cols).joined())
+                for r in rows.dropFirst() { out.append(line(r)) }
+                out.append("")
+            }
+        }
+        return out.joined(separator: "\n")
     }
 }
