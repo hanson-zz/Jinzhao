@@ -55,12 +55,14 @@ private struct BoardColumn: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Circle().fill(color).frame(width: 7, height: 7)
-                Text(title).font(.jzSection)
-                Text("\(items.count)").font(.jzCaption).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Text(title).font(.system(size: compact ? 15 : 18, weight: .bold))
+                Text("\(items.count)").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 7).padding(.vertical, 1)
+                    .background(JZ.controlFill, in: Capsule())
                 Spacer()
             }
+            .padding(.horizontal, 4).padding(.bottom, 4)
             if items.isEmpty {
                 Text(id == "doing" ? "把正在做的任务拖到这里" : "空")
                     .font(.jzCaption).foregroundStyle(.tertiary)
@@ -71,10 +73,16 @@ private struct BoardColumn: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, minHeight: compact ? 160 : 320, alignment: .topLeading)
-        .background(targeted ? JZ.accent.opacity(0.10) : JZ.innerFill,
-                    in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: compact ? 160 : 420, alignment: .topLeading)
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusL, style: .continuous))
+        .overlay {
+            if targeted {
+                RoundedRectangle(cornerRadius: JZ.radiusL, style: .continuous)
+                    .strokeBorder(JZ.accent.opacity(0.7), style: StrokeStyle(lineWidth: 1.2, dash: [5, 4]))
+                    .background(JZ.accent.opacity(0.06), in: RoundedRectangle(cornerRadius: JZ.radiusL, style: .continuous))
+            }
+        }
         .dropDestination(for: String.self) { raws, _ in
             guard let raw = raws.first, let uuid = UUID(uuidString: raw) else { return false }
             withAnimation(.easeInOut(duration: 0.15)) { store.setBoardColumn(taskID: uuid, column: id) }
@@ -88,48 +96,73 @@ private struct BoardCard: View {
     @EnvironmentObject private var store: DataStore
     private var cal: Calendar { Calendar(identifier: .gregorian) }
 
+    private var urgent: Bool {
+        guard let due = task.dueDate, !task.isDone else { return false }
+        return due < Date().addingTimeInterval(24 * 3600)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .top, spacing: 7) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 Button { store.toggleTask(task) } label: {
-                    Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(task.isDone ? JZ.success : (task.isImportant ? JZ.warm : Color.secondary))
+                    Image(systemName: task.isDone ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 17))
+                        .foregroundStyle(JZ.accent)
                 }
                 .buttonStyle(.plain)
                 Text(task.title)
-                    .font(.callout.weight(.medium))
-                    .strikethrough(task.isDone)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(task.isDone ? .secondary : .primary)
                     .lineLimit(3)
                 Spacer(minLength: 0)
-                if task.isImportant {
-                    Image(systemName: "flag.fill").font(.caption).foregroundStyle(JZ.warm)
+                Button { store.toggleImportant(task) } label: {
+                    Image(systemName: task.isImportant ? "flag.fill" : "flag")
+                        .foregroundStyle(task.isImportant ? JZ.accent : Color.secondary.opacity(0.5))
                 }
+                .buttonStyle(.plain)
+                .help(task.isImportant ? "取消重要" : "标为重要")
             }
-            HStack(spacing: 6) {
-                if let due = task.dueDate {
-                    Label(dueText(due), systemImage: "clock")
-                        .font(.caption)
-                        .foregroundStyle(!task.isDone && due < Date() ? JZ.danger : .secondary)
+            if let due = task.dueDate {
+                Label(dueText(due), systemImage: "calendar")
+                    .font(.system(size: 12, weight: .medium)).monospacedDigit()
+                    .foregroundStyle(task.isDone ? Color.secondary : (urgent ? JZ.danger : JZ.accent))
+                    .padding(.horizontal, 9).padding(.vertical, 3)
+                    .background((task.isDone ? Color.secondary : (urgent ? JZ.danger : JZ.accent)).opacity(0.12), in: Capsule())
+                    .padding(.leading, 27)
+            }
+            if !task.subtasks.isEmpty {
+                let done = task.subtasks.filter { $0.isDone }.count
+                let total = task.subtasks.count
+                HStack(spacing: 10) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(JZ.controlFill)
+                            Capsule().fill(task.isDone || done == total ? JZ.success : JZ.accent)
+                                .frame(width: geo.size.width * CGFloat(done) / CGFloat(max(total, 1)))
+                        }
+                    }
+                    .frame(height: 6)
+                    Text("\(done)/\(total)").font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary)
                 }
-                if !task.subtasks.isEmpty {
-                    Text("\(task.subtasks.filter { $0.isDone }.count)/\(task.subtasks.count)")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let folder = task.folderName { CapsuleTag(text: folder) }
+                .padding(.leading, 27)
+            }
+            if let folder = task.folderName {
+                CapsuleTag(text: folder).padding(.leading, 27)
             }
         }
-        .padding(9)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous))
+        .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous)
-                .strokeBorder(JZ.separator.opacity(0.4), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(JZ.separator.opacity(0.35), lineWidth: 0.5)
         }
+        .shadow(color: .black.opacity(0.05), radius: 4, y: 1)
         .contentShape(Rectangle())
         .draggable(task.id.uuidString) {
-            Text(task.title).font(.callout).padding(6)
-                .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: 6))
+            Text(task.title).font(.system(size: 14, weight: .semibold)).padding(10)
+                .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: 10))
+                .rotationEffect(.degrees(-3))
         }
         .contextMenu {
             Button("移到待办") { store.setBoardColumn(taskID: task.id, column: "todo") }
@@ -143,9 +176,7 @@ private struct BoardCard: View {
 
     private func dueText(_ d: Date) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN")
-        if cal.isDateInToday(d) { f.dateFormat = "今天 HH:mm" }
-        else if cal.isDateInTomorrow(d) { f.dateFormat = "明天 HH:mm" }
-        else { f.dateFormat = "M月d日" }
+        f.dateFormat = "M月d日（EEEEE）HH:mm"
         return f.string(from: d)
     }
 }

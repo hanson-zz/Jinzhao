@@ -51,23 +51,34 @@ struct TimeGridView: View {
     private func dayHeader(_ day: Date) -> some View {
         let isToday = cal.isDateInToday(day)
         let badge = holidays.badge(on: day)
-        let lunar = SolarTermTable.term(on: day) ?? LunarCalendar.info(for: day).dayText
-        return VStack(spacing: 2) {
-            HStack(spacing: 4) {
-                Text(TimeGridView.weekdayText(day)).font(.jzCaption).foregroundStyle(.secondary)
-                Text("\(cal.component(.day, from: day))")
-                    .font(.system(size: 15, weight: isToday ? .bold : .medium))
-                    .foregroundStyle(isToday ? Color.white : (holidays.isOffDay(on: day) ? JZ.success : Color.primary))
-                    .frame(minWidth: 24, minHeight: 24)
-                    .background(isToday ? JZ.accent : Color.clear, in: Circle())
-                if let t = badge.text {
-                    Text(t).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
-                        .padding(.horizontal, 3).padding(.vertical, 1)
-                        .background(TimeGridView.isWork(badge) ? JZ.warm : JZ.success, in: Capsule())
-                }
+        let info = LunarCalendar.info(for: day)
+        let term = SolarTermTable.term(on: day) ?? SolarTermTable.currentTerm(on: day)
+        let lunarLine = info.shortText
+        let tint: Color = isToday ? JZ.accent : .primary
+        return VStack(spacing: 3) {
+            Text(TimeGridView.weekdayText(day))
+                .font(.system(size: 13, weight: isToday ? .semibold : .regular))
+                .foregroundStyle(tint)
+            Text("\(cal.component(.month, from: day))月\(cal.component(.day, from: day))日")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+            Text(term.map { "\(lunarLine) · \($0)" } ?? lunarLine)
+                .font(.system(size: 10))
+                .foregroundStyle(isToday ? JZ.accent.opacity(0.85) : .secondary)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            if let t = badge.text {
+                Text(t).font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(TimeGridView.isWork(badge) ? JZ.warm : JZ.danger)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background((TimeGridView.isWork(badge) ? JZ.warm : JZ.danger).opacity(0.14), in: Capsule())
+            } else {
+                Color.clear.frame(height: 14)
             }
-            Text(lunar).font(.system(size: 10)).foregroundStyle(.secondary)
         }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(isToday ? JZ.accent.opacity(0.10) : Color.clear,
+                    in: UnevenRoundedRectangle(topLeadingRadius: 8, topTrailingRadius: 8))
     }
 
     private var hourLabels: some View {
@@ -228,7 +239,7 @@ private struct DayColumn: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: hourHeight * 24)
-        .background(targeted ? JZ.accent.opacity(0.07) : Color.clear)
+        .background(targeted ? JZ.accent.opacity(0.12) : (cal.isDateInToday(day) ? JZ.accent.opacity(0.04) : Color.clear))
         .overlay(alignment: .leading) {
             Rectangle().fill(JZ.separator.opacity(0.5)).frame(width: 0.5)
         }
@@ -254,12 +265,21 @@ private struct DayColumn: View {
     }
 
     private func nowLine(width: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            Circle().fill(JZ.danger).frame(width: 7, height: 7)
-            Rectangle().fill(JZ.danger).frame(height: 1.2)
+        ZStack(alignment: .leading) {
+            HStack(spacing: 0) {
+                Circle().fill(JZ.danger).frame(width: 7, height: 7)
+                Rectangle().fill(JZ.danger).frame(height: 1.5)
+            }
+            .frame(width: width)
+            Text(TimeGridView.timeText(Date()))
+                .font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5).padding(.vertical, 1.5)
+                .background(JZ.danger, in: RoundedRectangle(cornerRadius: 4))
+                .offset(x: 6)
         }
-        .frame(width: width)
-        .offset(x: -3, y: y(Date()) - 3.5)
+        .frame(width: width, height: 16)
+        .offset(x: -3, y: y(Date()) - 8)
         .allowsHitTesting(false)
     }
 
@@ -326,20 +346,23 @@ private struct EntryBlock: View {
 
     private func eventBlock(_ e: CalendarEventItem) -> some View {
         let c = TimeGridView.color(e.colorName)
-        return HStack(alignment: .top, spacing: 4) {
-            Rectangle().fill(c).frame(width: 3)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(e.title).font(.system(size: 11, weight: .semibold)).lineLimit(2)
-                Text(TimeGridView.timeText(e.start)).font(.system(size: 10)).foregroundStyle(.secondary)
-                if let p = e.meetingProvider, e.meetingURL != nil {
-                    Text(p).font(.system(size: 10)).foregroundStyle(c)
-                }
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(e.title).font(.system(size: 12, weight: .semibold)).lineLimit(2)
+            Text("\(TimeGridView.timeText(e.start)) – \(TimeGridView.timeText(e.end))")
+                .font(.system(size: 11)).monospacedDigit()
+                .foregroundStyle(.primary.opacity(0.65))
+            if let p = e.meetingProvider, e.meetingURL != nil {
+                Text(p).font(.system(size: 10, weight: .medium)).foregroundStyle(c)
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 2)
-        .background(c.opacity(0.16), in: RoundedRectangle(cornerRadius: 6))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 7).padding(.vertical, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(c.opacity(0.22), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(c.opacity(0.35), lineWidth: 0.8)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .contextMenu {
             if let url = e.meetingURL {
                 Button("加入\(e.meetingProvider ?? "")会议") { openURL(url) }
@@ -349,30 +372,32 @@ private struct EntryBlock: View {
     }
 
     private func taskBlock(_ t: TaskItem) -> some View {
-        HStack(alignment: .top, spacing: 5) {
+        HStack(alignment: .top, spacing: 6) {
             Button { store.toggleTask(t) } label: {
-                Image(systemName: t.isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 11))
+                Image(systemName: t.isDone ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 13))
                     .foregroundStyle(t.isDone ? JZ.success : JZ.accent)
             }
             .buttonStyle(.plain)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(t.title).font(.system(size: 11, weight: .semibold)).lineLimit(2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(t.title).font(.system(size: 12, weight: .semibold)).lineLimit(2)
                     .strikethrough(t.isDone)
+                    .foregroundStyle(t.isDone ? .secondary : .primary)
                 if let s = t.scheduledStart, let e = t.scheduledEnd {
-                    Text("\(TimeGridView.timeText(s))–\(TimeGridView.timeText(e))")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    Text("\(TimeGridView.timeText(s)) – \(TimeGridView.timeText(e))")
+                        .font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 5).padding(.vertical, 3)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(JZ.accent.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-                .background(JZ.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 6))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 7).padding(.vertical, 5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(JZ.accent.opacity(t.isDone ? 0.35 : 0.85), lineWidth: 1.2)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .contentShape(Rectangle())
         .draggable(t.id.uuidString) {
             Text(t.title).font(.callout).padding(6)
@@ -407,31 +432,82 @@ struct UnscheduledTray: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("待排期").font(.jzSection)
-                Text("\(items.count)").font(.jzCaption).foregroundStyle(.secondary)
+                Text("待排期").font(.system(size: 18, weight: .bold))
+                Text("\(items.count)").font(.jzCaption.weight(.semibold)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(JZ.controlFill, in: Capsule())
+                Spacer()
             }
-            Text("把任务拖到左边的时间格里，排成时间块。")
-                .font(.jzCaption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             ScrollView {
-                VStack(spacing: 4) {
+                VStack(spacing: 8) {
                     if items.isEmpty {
                         Text("没有待排期的任务").font(.callout).foregroundStyle(.secondary)
                             .padding(.top, 8)
                     }
-                    ForEach(items) { t in TaskChip(task: t) }
+                    ForEach(items) { t in TrayCard(task: t) }
                 }
+                .padding(.bottom, 4)
             }
+            Text("把任务拖到左边的时间格里，排成时间块。")
+                .font(.jzCaption).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
-        .frame(width: 180)
-        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusS))
+        .padding(12)
+        .frame(width: 220)
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
         .dropDestination(for: String.self) { items, _ in
             guard let raw = items.first, let id = UUID(uuidString: raw) else { return false }
             store.unschedule(taskID: id)
             return true
         }
+    }
+}
+
+/// 待排期卡片：勾选框 + 标题 + 预计时长 + 拖动把手
+private struct TrayCard: View {
+    let task: TaskItem
+    @EnvironmentObject private var store: DataStore
+
+    private var estimate: String {
+        let m = task.scheduledMinutes ?? 30
+        if m < 60 { return "预计 \(m) 分钟" }
+        if m % 60 == 0 { return "预计 \(m / 60) 小时" }
+        return String(format: "预计 %.1f 小时", Double(m) / 60)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button { store.toggleTask(task) } label: {
+                Image(systemName: "square").font(.system(size: 15)).foregroundStyle(JZ.accent)
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(task.title).font(.system(size: 13, weight: .semibold)).lineLimit(2)
+                Text(estimate).font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "line.3.horizontal").font(.system(size: 11)).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 9)
+        .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
+        .contentShape(Rectangle())
+        .draggable(task.id.uuidString) {
+            Text(task.title).font(.callout).padding(6)
+                .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: 6))
+        }
+        .contextMenu {
+            Menu("预计时长") {
+                ForEach([15, 30, 45, 60, 90, 120, 180], id: \.self) { m in
+                    Button(m < 60 ? "\(m) 分钟" : (m % 60 == 0 ? "\(m / 60) 小时" : "\(Double(m) / 60) 小时")) {
+                        store.updateTask(task.id) { $0.scheduledMinutes = m }
+                    }
+                }
+            }
+            Button(task.isImportant ? "取消重要" : "标为重要") { store.toggleImportant(task) }
+        }
+        .help("拖到左边的时间格里，排成时间块")
     }
 }

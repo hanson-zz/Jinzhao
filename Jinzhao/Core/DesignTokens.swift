@@ -28,7 +28,8 @@ enum JZ {
     /// 分割线 / 发丝描边
     static let separator = Color(nsColor: .separatorColor)
     /// 系统强调色（跟随用户系统设置，不写死蓝色）
-    static let accent = Color.accentColor
+    /// 品牌橙（取自「朝朝」图标）。效果图 2026-11-21 定稿后统一用它做强调色
+    static let accent = Color(red: 0.95, green: 0.47, blue: 0.16)
     /// 选中项底（系统选中色）
     static let selectedBg = Color(nsColor: .selectedContentBackgroundColor)
     /// 休 = 绿

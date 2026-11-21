@@ -177,3 +177,13 @@
 "随手记到收件箱" = "Capture to Inbox";
 "随手记录" = "Quick Capture";
 "随手记的东西会落在这里，之后再变成任务或笔记。" = "Captured items land here; turn them into tasks or notes later.";
+"全部" = "All";
+"已置顶" = "Pinned";
+"习惯统计" = "Habit Stats";
+"近 30 天完成率" = "30-day completion";
+"当前最长连续" = "Current best streak";
+"历史最长连续" = "All-time best streak";
+"近 12 周" = "12 weeks";
+"连续" = "Streak";
+"最长" = "Best";
+"30天" = "30 days";

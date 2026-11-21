@@ -6,6 +6,7 @@ struct NotesView: View {
     @EnvironmentObject private var store: DataStore
     @AppStorage("jinzhao.selectedNoteID") private var selectedRaw = ""
     @State private var search = ""
+    @State private var pinnedOnly = false
 
     private var selectedID: UUID? { UUID(uuidString: selectedRaw) }
 
@@ -14,16 +15,17 @@ struct NotesView: View {
             if (a.isPinned ?? false) != (b.isPinned ?? false) { return a.isPinned ?? false }
             return a.updatedAt > b.updatedAt
         }
+        let base = pinnedOnly ? list.filter { $0.isPinned ?? false } : list
         let q = search.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return list }
-        return list.filter { $0.title.localizedCaseInsensitiveContains(q) || $0.plainText.localizedCaseInsensitiveContains(q) }
+        guard !q.isEmpty else { return base }
+        return base.filter { $0.title.localizedCaseInsensitiveContains(q) || $0.plainText.localizedCaseInsensitiveContains(q) }
     }
 
     var body: some View {
         SolidCard {
             HStack(spacing: 0) {
                 listColumn
-                    .frame(width: 230)
+                    .frame(width: 270)
                 Divider()
                 if let id = selectedID, store.notes.contains(where: { $0.id == id }) {
                     NoteEditor(noteID: id)
@@ -56,10 +58,15 @@ struct NotesView: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("搜索笔记", text: $search).textFieldStyle(.plain)
             }
-            .padding(.horizontal, 9).padding(.vertical, 6)
+            .padding(.horizontal, 10).padding(.vertical, 7)
             .background(JZ.controlFill, in: RoundedRectangle(cornerRadius: JZ.radiusS))
+            HStack(spacing: 6) {
+                chip("全部", on: !pinnedOnly) { pinnedOnly = false }
+                chip("已置顶", on: pinnedOnly) { pinnedOnly = true }
+                Spacer()
+            }
             ScrollView {
-                VStack(spacing: 2) {
+                VStack(spacing: 8) {
                     if filtered.isEmpty {
                         VStack(spacing: 8) {
                             Image(systemName: "doc.text").font(.title2).foregroundStyle(.secondary)
@@ -80,28 +87,47 @@ struct NotesView: View {
         .padding(16)
     }
 
+    private func chip(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(LocalizedStringKey(title))
+                .font(.system(size: 12, weight: on ? .semibold : .regular))
+                .foregroundStyle(on ? Color.white : Color.primary)
+                .padding(.horizontal, 12).padding(.vertical, 5)
+                .background(on ? JZ.accent : JZ.controlFill, in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func row(_ note: NoteItem) -> some View {
         let selected = note.id == selectedID
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 4) {
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
                 if note.isPinned ?? false {
-                    Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(JZ.warm)
+                    Image(systemName: "pin.fill").font(.system(size: 11)).foregroundStyle(JZ.accent)
+                        .rotationEffect(.degrees(30))
                 }
                 Text(note.title.isEmpty ? "无标题" : note.title)
-                    .font(.callout.weight(.semibold)).lineLimit(1)
+                    .font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 4)
+                if note.openTodoCount > 0 {
+                    Text("\(note.openTodoCount) 个待办")
+                        .font(.system(size: 10.5, weight: .medium)).foregroundStyle(JZ.accent)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(JZ.accent.opacity(0.12), in: Capsule())
+                }
             }
-            HStack(spacing: 6) {
-                Text(shortDate(note.updatedAt)).font(.caption).foregroundStyle(.secondary)
-                Text(note.preview).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            if note.openTodoCount > 0 {
-                Text("\(note.openTodoCount) 个待办").font(.caption2).foregroundStyle(JZ.accent)
-            }
+            Text(note.preview.isEmpty ? "空白笔记" : note.preview)
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+            Text(shortDate(note.updatedAt)).font(.system(size: 11)).foregroundStyle(.secondary).monospacedDigit()
         }
-        .padding(.horizontal, 9).padding(.vertical, 7)
+        .padding(.horizontal, 12).padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(selected ? JZ.accent.opacity(0.16) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous))
+        .background(selected ? JZ.accent.opacity(0.12) : JZ.cardBg,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(selected ? JZ.accent.opacity(0.45) : JZ.separator.opacity(0.35), lineWidth: selected ? 1 : 0.5)
+        }
         .contentShape(Rectangle())
         .onTapGesture { selectedRaw = note.id.uuidString }
         .contextMenu {
@@ -137,7 +163,7 @@ struct NotesView: View {
     private func shortDate(_ d: Date) -> String {
         let cal = Calendar(identifier: .gregorian)
         let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = cal.isDateInToday(d) ? "HH:mm" : "M月d日"
+        f.dateFormat = cal.isDateInToday(d) ? "今天 HH:mm" : "M月d日 HH:mm"
         return f.string(from: d)
     }
 }
@@ -158,11 +184,12 @@ private struct NoteEditor: View {
                 VStack(alignment: .leading, spacing: 4) {
                     TextField("标题", text: titleBinding, axis: .vertical)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.system(size: 28, weight: .bold))
                         .focused($titleFocused)
                         .onSubmit { focusFirstBlock() }
-                    Text(metaLine(note)).font(.caption).foregroundStyle(.secondary)
-                        .padding(.bottom, 10)
+                    Text(metaLine(note)).font(.system(size: 12)).foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                    Divider().padding(.vertical, 10)
                     ForEach(note.blocks) { block in
                         BlockRow(noteID: noteID, block: block, focused: $focused)
                     }
@@ -192,9 +219,10 @@ private struct NoteEditor: View {
     }
 
     private func metaLine(_ n: NoteItem) -> String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月d日 HH:mm"
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "yyyy年M月d日 HH:mm"
         let lunar = LunarCalendar.info(for: n.createdAt).shortText
-        return "创建于 \(f.string(from: n.createdAt)) · 农历\(lunar) · 修改于 \(f.string(from: n.updatedAt))"
+        let term = SolarTermTable.currentTerm(on: n.createdAt).map { " · \($0)" } ?? ""
+        return "创建于 \(f.string(from: n.createdAt))   |   农历\(lunar)\(term)"
     }
 
     private func focusFirstBlock() {
@@ -210,26 +238,49 @@ private struct NoteEditor: View {
     @ViewBuilder private func linkedTasks(_ n: NoteItem) -> some View {
         let tasks = store.tasks.filter { $0.sourceNoteID == n.id }
         if !tasks.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Divider().padding(.vertical, 8)
-                Text("从这篇笔记建的任务").font(.jzSection)
-                ForEach(tasks) { t in
-                    HStack(spacing: 8) {
-                        Button { store.toggleTask(t) } label: {
-                            Image(systemName: t.isDone ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(t.isDone ? JZ.success : Color.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                Divider().padding(.vertical, 10)
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.square").foregroundStyle(JZ.accent).font(.system(size: 16))
+                    Text("从这篇笔记建的任务").font(.system(size: 16, weight: .bold))
+                    Text("\(tasks.count)").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(JZ.controlFill, in: Capsule())
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(tasks.enumerated()), id: \.element.id) { i, t in
+                        HStack(spacing: 10) {
+                            Button { store.toggleTask(t) } label: {
+                                Image(systemName: t.isDone ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(JZ.accent)
+                            }
+                            .buttonStyle(.plain)
+                            Text(t.title).font(.system(size: 13.5)).strikethrough(t.isDone)
+                                .foregroundStyle(t.isDone ? .secondary : .primary)
+                            Spacer()
+                            if let d = t.dueDate {
+                                Text(Self.pill(d))
+                                    .font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(JZ.controlFill, in: Capsule())
+                            }
                         }
-                        .buttonStyle(.plain)
-                        Text(t.title).strikethrough(t.isDone)
-                        if let d = t.dueDate {
-                            Text(d.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        if i < tasks.count - 1 { Divider().padding(.leading, 40) }
                     }
-                    .font(.callout)
+                }
+                .background(JZ.cardBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(JZ.separator.opacity(0.5), lineWidth: 0.5)
                 }
             }
         }
+    }
+
+    static func pill(_ d: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月d日 HH:mm"
+        return f.string(from: d)
     }
 }
 
@@ -279,23 +330,36 @@ private struct BlockRow: View {
                     Label("已转任务", systemImage: "checkmark.circle")
                         .font(.caption).foregroundStyle(JZ.success)
                         .labelStyle(.titleAndIcon)
-                } else if hovering && !block.text.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Button("转为任务") {
+                } else if !(block.isDone ?? false) && !block.text.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Button {
                         store.convertBlockToTask(noteID: noteID, blockID: block.id)
+                    } label: {
+                        Text("转为任务").font(.system(size: 11))
+                            .padding(.horizontal, 10).padding(.vertical, 3)
+                            .background(JZ.controlFill, in: Capsule())
+                            .overlay { Capsule().strokeBorder(JZ.separator.opacity(0.5), lineWidth: 0.5) }
                     }
-                    .glassButton().controlSize(.mini)
+                    .buttonStyle(.plain)
+                    .opacity(hovering ? 1 : 0.7)
                     .help("建一条任务；文字里的「明天下午三点」会自动设成截止时间")
                 }
             }
         }
-        .padding(.vertical, block.kind == .heading ? 6 : 2)
+        .padding(.vertical, block.kind == .heading ? 8 : (block.kind == .todo ? 5 : 2))
+        .padding(.horizontal, block.kind == .todo ? 6 : 0)
+        .background(block.kind == .todo && hovering ? JZ.accent.opacity(0.07) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 8))
         .onHover { hovering = $0 }
     }
 
     @ViewBuilder private var leading: some View {
         switch block.kind {
+        case .heading:
+            RoundedRectangle(cornerRadius: 1.5).fill(JZ.accent).frame(width: 3.5, height: 18)
+                .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 5 }
         case .bullet:
-            Text("•").font(.body.weight(.bold)).foregroundStyle(.secondary)
+            Circle().fill(JZ.accent).frame(width: 5, height: 5)
+                .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 4 }
         case .todo:
             Button {
                 store.updateNote(noteID) { n in
@@ -305,7 +369,8 @@ private struct BlockRow: View {
                 }
             } label: {
                 Image(systemName: (block.isDone ?? false) ? "checkmark.square.fill" : "square")
-                    .foregroundStyle((block.isDone ?? false) ? JZ.success : Color.secondary)
+                    .font(.system(size: 15))
+                    .foregroundStyle((block.isDone ?? false) ? JZ.accent : Color.secondary)
             }
             .buttonStyle(.plain)
         default:
@@ -314,7 +379,7 @@ private struct BlockRow: View {
     }
 
     private var font: Font {
-        block.kind == .heading ? .system(size: 18, weight: .semibold) : .system(size: 14)
+        block.kind == .heading ? .system(size: 18, weight: .bold) : .system(size: 14.5)
     }
 
     private var placeholder: String {

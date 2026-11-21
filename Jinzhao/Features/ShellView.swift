@@ -98,6 +98,7 @@ struct ShellView: View {
             }
         }
         .preferredColorScheme((AppearanceSetting(rawValue: appearanceRaw) ?? .system).colorScheme)
+        .tint(JZ.accent)
         // 菜单栏命令接线（命令在 JinzhaoApp 的 .commands 里定义）
         .onReceive(NotificationCenter.default.publisher(for: .jinzhaoSwitchSection)) { note in
             if let name = note.object as? String, let s = Section(rawValue: name) { selection = s }
