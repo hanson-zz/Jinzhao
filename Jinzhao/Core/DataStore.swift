@@ -74,7 +74,7 @@ final class DataStore: ObservableObject {
 
     private static func todayKey() -> String { dayKey(offsetDays: 0) }
 
-    static func key(for date: Date) -> String {
+    nonisolated static func key(for date: Date) -> String {
         let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
@@ -226,7 +226,7 @@ final class DataStore: ObservableObject {
         }
     }
 
-    static func snap(_ date: Date, minutes step: Int = 15) -> Date {
+    nonisolated static func snap(_ date: Date, minutes step: Int = 15) -> Date {
         let cal = Calendar(identifier: .gregorian)
         var c = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let m = c.minute ?? 0
