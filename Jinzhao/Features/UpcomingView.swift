@@ -79,8 +79,8 @@ struct UpcomingView: View {
                     Image(systemName: "circle").foregroundStyle(.secondary)
                         .frame(width: 46)
                     Text(t.title).font(.callout)
-                    if t.isImportant {
-                        Label("重要", systemImage: "flag.fill").font(.caption).foregroundStyle(JZ.warm)
+                    if t.priorityLevel != .none {
+                        Label(t.priorityLevel.short, systemImage: "flag.fill").font(.caption).foregroundStyle(t.priorityLevel.color)
                     }
                     Spacer()
                     Text("任务").font(.caption).foregroundStyle(.secondary)

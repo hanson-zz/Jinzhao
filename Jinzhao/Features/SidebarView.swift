@@ -104,31 +104,28 @@ struct SidebarView: View {
 
     private func navRow(_ section: ShellView.Section) -> some View {
         let selected = selection == section
-        let tile = tileColor(for: section)
         return Button {
             withAnimation(.easeInOut(duration: 0.15)) { selection = section }
         } label: {
-            HStack(spacing: 9) {
+            HStack(spacing: 10) {
                 Image(systemName: section.symbol)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(selected ? .white : tile)
-                    .frame(width: 26, height: 26)
-                    .background(selected ? Color.white.opacity(0.25) : tile.opacity(0.09),
-                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                Text(section.rawValue)
-                    .font(.jzBody.weight(selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? .white : .primary)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(selected ? JZ.accent : Color.primary.opacity(0.75))
+                    .frame(width: 24, height: 24)
+                Text(LocalizedStringKey(section.rawValue))
+                    .font(.system(size: 14, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? JZ.accent : .primary)
                 Spacer()
                 if let n = count(for: section), n > 0 {
                     Text("\(n)")
                         .font(.jzCaption.weight(.medium))
-                        .foregroundStyle(selected ? .white : .secondary)
+                        .foregroundStyle(selected ? JZ.accent : .secondary)
                         .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(selected ? Color.white.opacity(0.25) : JZ.controlFill, in: Capsule())
+                        .background(selected ? JZ.accent.opacity(0.15) : JZ.controlFill, in: Capsule())
                 }
             }
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(selected ? JZ.selectedBg : Color.clear,
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(selected ? JZ.accent.opacity(0.16) : Color.clear,
                         in: RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous))
             .contentShape(Rectangle())
         }

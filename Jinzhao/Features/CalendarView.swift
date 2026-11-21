@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// 日历页：月视图（农历/节气/休班 + 日程圆点）+ 选中日的日程列表 + 新建日程（写入苹果日历）
+/// 日历页：月 / 周 / 3 天 / 日 四种视图
+/// 月视图：农历/节气/休班 + 日程圆点 + 选中日列表；时间视图：日程 + 今朝任务时间块，可拖任务排期
 struct CalendarView: View {
     @EnvironmentObject private var calendar: CalendarService
     @Environment(\.holidayService) private var holidays
@@ -8,6 +9,44 @@ struct CalendarView: View {
     @State private var monthAnchor: Date = Date()
     @State private var selectedDay: Date = Date()
     @State private var showingNewEvent = false
+    @AppStorage("jinzhao.calendarMode") private var modeRaw = ViewMode.week.rawValue
+
+    enum ViewMode: String, CaseIterable {
+        case day = "日", three = "3 天", week = "周", month = "月"
+    }
+
+    private var mode: ViewMode { ViewMode(rawValue: modeRaw) ?? .week }
+
+    /// 时间视图显示的日期：周视图从周一开始（国内习惯）
+    private var gridDays: [Date] {
+        let start = cal.startOfDay(for: selectedDay)
+        switch mode {
+        case .day: return [start]
+        case .three: return (0..<3).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
+        case .week, .month:
+            let w = cal.component(.weekday, from: start)
+            let back = (w + 5) % 7
+            let monday = cal.date(byAdding: .day, value: -back, to: start) ?? start
+            return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: monday) }
+        }
+    }
+
+    private var rangeTitle: String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN")
+        switch mode {
+        case .month:
+            return monthTitle
+        case .day:
+            f.dateFormat = "yyyy年M月d日"
+            return f.string(from: selectedDay)
+        default:
+            guard let a = gridDays.first, let b = gridDays.last else { return monthTitle }
+            f.dateFormat = "yyyy年M月d日"
+            let g = DateFormatter(); g.locale = Locale(identifier: "zh_CN")
+            g.dateFormat = cal.component(.month, from: a) == cal.component(.month, from: b) ? "d日" : "M月d日"
+            return "\(f.string(from: a)) – \(g.string(from: b))"
+        }
+    }
 
     private var cal: Calendar { Calendar(identifier: .gregorian) }
 
@@ -31,12 +70,24 @@ struct CalendarView: View {
         SolidCard {
             VStack(alignment: .leading, spacing: 14) {
                 header
-                if calendar.authState == .authorized {
-                    weekdayRow
-                    monthGrid
-                    dayDetail
+                if mode == .month {
+                    if calendar.authState == .authorized {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 14) {
+                                weekdayRow
+                                monthGrid
+                                dayDetail
+                            }
+                        }
+                    } else {
+                        authPrompt
+                    }
                 } else {
-                    authPrompt
+                    if calendar.authState != .authorized { authBanner }
+                    HStack(alignment: .top, spacing: 12) {
+                        TimeGridView(days: gridDays)
+                        UnscheduledTray()
+                    }
                 }
             }
             .padding(20)
@@ -52,21 +103,61 @@ struct CalendarView: View {
 
     private var header: some View {
         HStack {
-            Text(monthTitle).font(.system(size: 22, weight: .bold))
+            Text(rangeTitle).font(.system(size: 22, weight: .bold))
+                .lineLimit(1).minimumScaleFactor(0.7)
             Spacer()
-            Button { shiftMonth(-1) } label: { Image(systemName: "chevron.left") }
+            Picker("视图", selection: $modeRaw) {
+                ForEach(ViewMode.allCases, id: \.self) { m in
+                    Text(LocalizedStringKey(m.rawValue)).tag(m.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 200)
+            Button { shift(-1) } label: { Image(systemName: "chevron.left") }
                 .glassButton().controlSize(.small)
             Button("今天") {
                 monthAnchor = Date()
                 selectedDay = Date()
             }
             .glassButton().controlSize(.small)
-            Button { shiftMonth(1) } label: { Image(systemName: "chevron.right") }
+            Button { shift(1) } label: { Image(systemName: "chevron.right") }
                 .glassButton().controlSize(.small)
             Button("+ 新建日程") { showingNewEvent = true }
                 .glassButton().controlSize(.small)
                 .disabled(calendar.authState != .authorized)
         }
+    }
+
+    private func shift(_ delta: Int) {
+        switch mode {
+        case .month: shiftMonth(delta)
+        case .day: move(days: delta)
+        case .three: move(days: delta * 3)
+        case .week: move(days: delta * 7)
+        }
+    }
+
+    private func move(days: Int) {
+        if let d = cal.date(byAdding: .day, value: days, to: selectedDay) {
+            selectedDay = d
+            monthAnchor = d
+        }
+    }
+
+    private var authBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "calendar.badge.exclamationmark").foregroundStyle(JZ.warm)
+            Text("还没连接苹果日历，这里先只显示今朝任务。").font(.callout)
+            Spacer()
+            if calendar.authState == .denied {
+                Button("打开系统设置") { calendar.openPrivacySettings() }.glassButton().controlSize(.small)
+            } else {
+                Button("连接日历") { Task { await calendar.requestAccess() } }.glassButton().controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(JZ.warm.opacity(0.08), in: RoundedRectangle(cornerRadius: JZ.radiusS))
     }
 
     private func shiftMonth(_ delta: Int) {
@@ -126,6 +217,7 @@ struct CalendarView: View {
         .background(isSelected ? JZ.accent : (isToday ? JZ.accent.opacity(0.35) : JZ.innerFill),
                     in: RoundedRectangle(cornerRadius: 9))
         .contentShape(Rectangle())
+        .onTapGesture(count: 2) { selectedDay = day; modeRaw = ViewMode.day.rawValue }
         .onTapGesture { selectedDay = day }
     }
 

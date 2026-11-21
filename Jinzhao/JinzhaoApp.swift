@@ -63,6 +63,7 @@ struct JinzhaoApp: App {
                     .keyboardShortcut("n", modifiers: .command)
                 Button("新建任务") { post(.jinzhaoNewTask) }
                 Button("新建日程") { post(.jinzhaoNewEvent) }
+                Button("新建笔记") { post(.jinzhaoNewNote) }
                 Divider()
                 Button("快速启动") { post(.jinzhaoQuickLaunch) }
                     .keyboardShortcut("k", modifiers: .command)
@@ -130,6 +131,8 @@ extension Notification.Name {
     static let jinzhaoShowAbout = Notification.Name("jinzhao.showAbout")
     static let jinzhaoShowSettings = Notification.Name("jinzhao.showSettings")
     static let jinzhaoShowFloatingToday = Notification.Name("jinzhao.showFloatingToday")
+    static let jinzhaoNewNote = Notification.Name("jinzhao.newNote")             // 新建笔记并打开
+    static let jinzhaoOpenNote = Notification.Name("jinzhao.openNote")           // object = 笔记 UUID
 }
 
 // MARK: - HolidayService 注入
