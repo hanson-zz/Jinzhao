@@ -2,7 +2,16 @@ import SwiftUI
 
 /// 今天页（照效果图）：日期条 → 问候汇总 → 调休提醒条 → 日程任务混排 + 习惯/笔记/明天
 struct TodayView: View {
-    let date: Date
+    /// 真实的今天（由外壳每天刷新传入）
+    let today: Date
+    /// 用户在日期条 / 右栏小日历里点选的日子；nil = 看今天
+    @Binding var selectedDay: Date?
+    /// 当前展示的日子
+    private var date: Date { selectedDay ?? today }
+    private var viewingToday: Bool { cal.isDate(date, inSameDayAs: today) }
+    @State private var showCapture = false
+    @State private var captureText = ""
+    @FocusState private var captureFocused: Bool
     @EnvironmentObject private var store: DataStore
     @EnvironmentObject private var calendar: CalendarService
     @Environment(\.holidayService) private var holidays
@@ -30,8 +39,16 @@ struct TodayView: View {
                     workdayAlert
                     calendarBanner
                     dailyOverview
+                    // 宽：便签 | 习惯+明天 两栏；中：便签在上，习惯和明天并排；窄：全部单栏
                     ViewThatFits(in: .horizontal) {
                         dashboardColumns
+                        VStack(alignment: .leading, spacing: 12) {
+                            primaryPanel
+                            HStack(alignment: .top, spacing: 12) {
+                                habitsCard.frame(minWidth: 230, maxWidth: .infinity, alignment: .topLeading)
+                                tomorrowCard.frame(minWidth: 230, maxWidth: .infinity, alignment: .topLeading)
+                            }
+                        }
                         VStack(alignment: .leading, spacing: 12) {
                             primaryPanel
                             habitsCard
@@ -50,12 +67,12 @@ struct TodayView: View {
     private var dashboardColumns: some View {
         HStack(alignment: .top, spacing: 12) {
             primaryPanel
-                .frame(minWidth: 300, maxWidth: .infinity, alignment: .topLeading)
+                .frame(minWidth: 380, maxWidth: .infinity, alignment: .topLeading)
             VStack(spacing: 12) {
                 habitsCard
                 tomorrowCard
             }
-            .frame(width: 250)
+            .frame(width: 260)
         }
     }
 
@@ -158,13 +175,7 @@ struct TodayView: View {
                 }
                 .glassButton()
                 .controlSize(.small)
-                Button {
-                    NotificationCenter.default.post(name: .jinzhaoQuickCapture, object: nil)
-                } label: {
-                    Label("随手记录", systemImage: "square.and.pencil")
-                }
-                .glassButton()
-                .controlSize(.small)
+                captureButton(prominent: false, small: true)
             }
         }
         .padding(.vertical, 4)
@@ -210,6 +221,16 @@ struct TodayView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             Spacer()
+            if !viewingToday {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { selectedDay = nil }
+                } label: {
+                    Label("回到今天", systemImage: "arrow.uturn.backward")
+                        .font(.jzBody)
+                }
+                .glassButton()
+                .padding(.trailing, 6)
+            }
             // 分段控件：玻璃底 + 白字，不用饱和蓝（全页蓝色焦点只留给日期条「今天」）
             HStack(spacing: 2) {
                 ForEach(Mode.allCases, id: \.self) { m in
@@ -232,18 +253,19 @@ struct TodayView: View {
     }
 
     private var greetingLine: some View {
-        let hour = cal.component(.hour, from: date)
+        let hour = cal.component(.hour, from: Date())
         let greet = hour < 12 ? "早上好" : hour < 18 ? "下午好" : "晚上好"
         let openTasks = store.tasks.filter { !$0.isDone }.count
         let important = store.tasks.filter { $0.isImportant && !$0.isDone }.count
         return VStack(alignment: .leading, spacing: 3) {
           HStack(spacing: 8) {
-            Text("\(greet)，老板。").fontWeight(.medium)
+            Text(viewingToday ? "\(greet)，老板。" : "\(relativeDayText)，").fontWeight(.medium)
             if isFirstWorkdayAfterHoliday {
                 Text("假期结束第一天，今天").foregroundStyle(.secondary)
             }
-            if !calendar.events.isEmpty {
-                Label("\(calendar.events.count) 个日程", systemImage: "circle.fill").font(.callout)
+            let dayEventCount = calendar.events(on: date).count
+            if dayEventCount > 0 {
+                Label("\(dayEventCount) 个日程", systemImage: "calendar").font(.callout)
             }
             Label("\(store.habits.count) 个习惯", systemImage: "repeat").font(.callout)
             if important > 0 {
@@ -273,12 +295,15 @@ struct TodayView: View {
 
     private var dateStrip: some View {
         HStack(spacing: 8) {
+            stripArrow("chevron.left", days: -7)
             ForEach(stripDays, id: \.self) { day in
+                // isToday 在这里表示「选中」：选中格用品牌橙；真正的今天另用文字「今天」标出
                 let isToday = cal.isDate(day, inSameDayAs: date)
+                let isRealToday = cal.isDate(day, inSameDayAs: today)
                 let badge = holidays.badge(on: day)
                 VStack(spacing: 3) {
                     HStack(spacing: 3) {
-                        Text(isToday ? "今天" : "周\(weekdayText(day))")
+                        Text(isRealToday ? "今天" : "周\(weekdayText(day))")
                             .font(.caption2).foregroundStyle(isToday ? .white : .secondary)
                         if let t = badge.text {
                             Text(t).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
@@ -292,18 +317,123 @@ struct TodayView: View {
                         .foregroundStyle(dayNumberColor(day, isToday: isToday))
                     Text(SolarTermTable.term(on: day) ?? LunarCalendar.info(for: day).dayText)
                         .font(.caption2).foregroundStyle(isToday ? .white.opacity(0.9) : .secondary)
-                    if isToday {
-                        HStack(spacing: 2) {
-                            ForEach(0..<3, id: \.self) { _ in Circle().fill(.white).frame(width: 3, height: 3) }
-                        }
-                    }
+                    // 有日程/任务的日子底部一个小点（选中格白点，其余橙点）
+                    Circle()
+                        .fill(isToday ? Color.white : JZ.accent)
+                        .frame(width: 4, height: 4)
+                        .opacity(hasItems(on: day) ? 1 : 0)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
                 .background(isToday ? JZ.accent : JZ.controlFill,
                             in: RoundedRectangle(cornerRadius: 13))
+                .overlay {
+                    if isRealToday && !isToday {
+                        RoundedRectangle(cornerRadius: 13)
+                            .strokeBorder(JZ.accent.opacity(0.7), lineWidth: 1.2)
+                    }
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 13))
+                .onTapGesture { select(day) }
+                .hoverHighlight()
+                .help(isToday ? "" : "查看这一天")
             }
+            stripArrow("chevron.right", days: 7)
         }
+    }
+
+    private func stripArrow(_ symbol: String, days: Int) -> some View {
+        Button {
+            select(cal.date(byAdding: .day, value: days, to: date)!)
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 54)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(days < 0 ? "上一周" : "下一周")
+    }
+
+    private func select(_ day: Date) {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            selectedDay = cal.isDate(day, inSameDayAs: today) ? nil : cal.startOfDay(for: day)
+        }
+    }
+
+    private func hasItems(on day: Date) -> Bool {
+        if !calendar.events(on: day).isEmpty { return true }
+        return store.tasks.contains { t in
+            !t.isDone && (t.dueDate.map { cal.isDate($0, inSameDayAs: day) } ?? false)
+        }
+    }
+
+    /// 非今天时问候语换成「明天 / 昨天 / 11月23日」
+    private var relativeDayText: String {
+        let diff = cal.dateComponents([.day], from: cal.startOfDay(for: today), to: cal.startOfDay(for: date)).day ?? 0
+        switch diff {
+        case 1: return "明天"
+        case -1: return "昨天"
+        case 2: return "后天"
+        default:
+            let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月d日"
+            return f.string(from: date)
+        }
+    }
+
+    // MARK: 随手记录（弹出小输入框，存进收件箱或直接成为任务）
+
+    private func captureButton(prominent: Bool, small: Bool) -> some View {
+        Button {
+            captureText = ""
+            showCapture = true
+        } label: {
+            Label("随手记录", systemImage: "square.and.pencil")
+        }
+        .glassButton(prominent: prominent)
+        .controlSize(small ? .small : .regular)
+        .popover(isPresented: $showCapture, arrowEdge: .bottom) { capturePopover }
+    }
+
+    private var capturePopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("随手记录").font(.jzSection)
+            TextField("想到什么，先写下来…", text: $captureText, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...4)
+                .focused($captureFocused)
+                .padding(.horizontal, 10).padding(.vertical, 8)
+                .background(JZ.controlFill, in: RoundedRectangle(cornerRadius: JZ.radiusS, style: .continuous))
+                .onSubmit { saveCapture(asTask: false) }
+            HStack {
+                Text("回车存入收件箱").font(.jzCaption).foregroundStyle(.secondary)
+                Spacer()
+                Button("设为\(viewingToday ? "今天" : relativeDayText)任务") { saveCapture(asTask: true) }
+                    .glassButton()
+                    .disabled(captureText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("存入收件箱") { saveCapture(asTask: false) }
+                    .glassButton(prominent: true)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(captureText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .controlSize(.small)
+        }
+        .padding(14)
+        .frame(width: 340)
+        .onAppear { DispatchQueue.main.async { captureFocused = true } }
+    }
+
+    private func saveCapture(asTask: Bool) {
+        let text = captureText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if asTask {
+            store.addTask(title: text, dueDate: date)
+        } else {
+            store.addInbox(text: text)
+        }
+        captureText = ""
+        showCapture = false
     }
 
     private func isWork(_ badge: DayBadge) -> Bool {
@@ -354,7 +484,10 @@ struct TodayView: View {
     /// 今天页显示的任务：未完成且（无截止 / 已到期 / 今天到期） + 今天完成的
     private var displayTasks: [TaskItem] {
         let endOfToday = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: date))!
-        let open = store.tasks.filter { !$0.isDone && ($0.dueDate == nil || $0.dueDate! < endOfToday) }
+        // 看其他日子时只列当天到期的任务；看今天时含无截止和已逾期的
+        let open = viewingToday
+            ? store.tasks.filter { !$0.isDone && ($0.dueDate == nil || $0.dueDate! < endOfToday) }
+            : store.tasks.filter { !$0.isDone && ($0.dueDate.map { cal.isDate($0, inSameDayAs: date) } ?? false) }
         let doneToday = store.tasks.filter { t in
             t.isDone && (t.doneAt.map { cal.isDate($0, inSameDayAs: date) } ?? false)
         }
@@ -363,16 +496,16 @@ struct TodayView: View {
 
     private var todayList: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("今天 日程与任务 · \(calendar.events(on: date).count + displayTasks.count)")
+            Text("\(viewingToday ? "今天" : relativeDayText) 日程与任务 · \(calendar.events(on: date).count + displayTasks.count)")
                 .font(.jzSection).padding(.bottom, 6)
-            if calendar.events.filter({ isToday($0.start) }).isEmpty && displayTasks.isEmpty {
+            if calendar.events(on: date).isEmpty && displayTasks.isEmpty {
                 VStack(alignment: .leading, spacing: 14) {
                     Image(systemName: "checkmark.seal")
                         .font(.system(size: 28, weight: .ultraLight))
                         .foregroundStyle(JZ.accent.opacity(0.72))
                         .frame(width: 52, height: 52)
                         .background(JZ.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 15))
-                    Text("今天，从一件小事开始")
+                    Text(viewingToday ? "今天，从一件小事开始" : "\(relativeDayText)还没有安排")
                         .font(.system(size: 16, weight: .semibold))
                     Text("还没有安排。记录一项待办，或先把想法放进收件箱。")
                         .font(.callout).foregroundStyle(.secondary)
@@ -384,12 +517,7 @@ struct TodayView: View {
                             Label("新建任务", systemImage: "plus")
                         }
                         .glassButton(prominent: true)
-                        Button {
-                            NotificationCenter.default.post(name: .jinzhaoQuickCapture, object: nil)
-                        } label: {
-                            Label("随手记录", systemImage: "square.and.pencil")
-                        }
-                        .glassButton()
+                        captureButton(prominent: false, small: false)
                     }
                     .controlSize(.regular)
                 }
@@ -403,7 +531,7 @@ struct TodayView: View {
             ForEach(displayTasks) { task in
                 taskRow(task)
             }
-            if !displayTasks.isEmpty && displayTasks.count + calendar.events.filter({ isToday($0.start) }).count < 3 {
+            if !displayTasks.isEmpty && displayTasks.count + calendar.events(on: date).count < 3 {
                 // 内容少时给一个轻量提示，填住左下空白
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles").foregroundStyle(.secondary)
@@ -558,7 +686,7 @@ struct TodayView: View {
     private var habitsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("今日习惯").font(.subheadline.weight(.semibold))
+                Text(viewingToday ? "今日习惯" : "习惯（按今天进度）").font(.subheadline.weight(.semibold))
                 Spacer()
                 if !store.habits.isEmpty {
                     Text("连续打卡 \(store.habits.map { $0.streakDays }.max() ?? 0) 天")
@@ -612,10 +740,11 @@ struct TodayView: View {
             }
         }
         .padding(14)
-        .background(JZ.cardBg.opacity(0.55), in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
-                .strokeBorder(JZ.separator.opacity(0.30), lineWidth: 0.5)
+                .strokeBorder(JZ.separator.opacity(0.35), lineWidth: 0.5)
         }
     }
 
@@ -637,15 +766,15 @@ struct TodayView: View {
         let lunar = LunarCalendar.info(for: tomorrow)
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("明天 · \(holidayText(tomorrow))").font(.subheadline.weight(.semibold))
+                Text("\(viewingToday ? "明天" : "次日") · \(holidayText(tomorrow))").font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("农历\(lunar.shortText)").font(.caption).foregroundStyle(.secondary)
             }
-            if calendar.events.filter({ cal.isDate($0.start, inSameDayAs: tomorrow) }).isEmpty
+            if calendar.events(on: tomorrow).isEmpty
                 && tomorrowTasks(tomorrow).isEmpty {
                 Text("明天暂无安排").font(.callout).foregroundStyle(.secondary)
             }
-            ForEach(calendar.events.filter { cal.isDate($0.start, inSameDayAs: tomorrow) }) { e in
+            ForEach(calendar.events(on: tomorrow).filter { !$0.isAllDay }) { e in
                 HStack(spacing: 8) {
                     Text(e.start, style: .time).font(.callout.weight(.medium))
                     Text(e.title).font(.callout)
@@ -665,10 +794,11 @@ struct TodayView: View {
             }
         }
         .padding(14)
-        .background(JZ.cardBg.opacity(0.55), in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(JZ.innerFill, in: RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: JZ.radiusM, style: .continuous)
-                .strokeBorder(JZ.separator.opacity(0.30), lineWidth: 0.5)
+                .strokeBorder(JZ.separator.opacity(0.35), lineWidth: 0.5)
         }
     }
 }

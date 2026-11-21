@@ -6,6 +6,8 @@ struct ShellView: View {
     let today: Date
     @State private var selection: Section = .today
     @State private var searchText = ""
+    /// 今天页正在看的日子（nil = 今天）；日期条和右栏小日历共用
+    @State private var focusDay: Date?
     @AppStorage(AppearanceSetting.storageKey) private var appearanceRaw: String = AppearanceSetting.system.rawValue
     @State private var showAbout = false
     @State private var showSettings = false
@@ -44,7 +46,7 @@ struct ShellView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(0) // 窗口拉窄时只有中间栏变窄，右栏不溢出
                 .transition(.opacity)
-            InboxRailView(today: today)
+            InboxRailView(today: today, focusDay: $focusDay) { selection = .today }
                 .frame(width: 272)
                 .layoutPriority(2)
         }
@@ -90,7 +92,7 @@ struct ShellView: View {
                     Button("新建任务") { NotificationCenter.default.post(name: .jinzhaoNewTask, object: nil) }
                     Button("新建日程") { NotificationCenter.default.post(name: .jinzhaoNewEvent, object: nil) }
                     Button("新建笔记") { NotificationCenter.default.post(name: .jinzhaoNewNote, object: nil) }
-                    Button("随手记到收件箱") { selection = .inbox }
+                    Button("随手记到收件箱") { NotificationCenter.default.post(name: .jinzhaoQuickCapture, object: nil) }
                 } label: {
                     Label("新建", systemImage: "plus")
                 }
@@ -140,7 +142,7 @@ struct ShellView: View {
     @ViewBuilder private var center: some View {
         switch selection {
         case .today:
-            TodayView(date: today)
+            TodayView(today: today, selectedDay: $focusDay)
         case .upcoming:
             UpcomingView()
         case .calendar:
