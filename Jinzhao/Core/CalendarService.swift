@@ -73,8 +73,13 @@ final class CalendarService: ObservableObject {
         events = fetched.map(CalendarService.map).sorted { $0.start < $1.start }
     }
 
+    /// 当天有交集的日程（修：跨天的全天日程，如三天出差，以前只在第一天显示）
     func events(on day: Date) -> [CalendarEventItem] {
-        events.filter { cal.isDate($0.start, inSameDayAs: day) }
+        let dayStart = cal.startOfDay(for: day)
+        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
+        return events.filter { e in
+            e.start < dayEnd && max(e.end, e.start.addingTimeInterval(1)) > dayStart
+        }
     }
 
     // MARK: 写入
@@ -196,7 +201,9 @@ final class CalendarService: ObservableObject {
     private static func map(_ event: EKEvent) -> CalendarEventItem {
         let meeting = MeetingDetector.detect(in: event)
         return CalendarEventItem(
-            id: event.eventIdentifier ?? UUID().uuidString,
+            // 重复日程的每一次 eventIdentifier 相同：加上开始时间，保证每一次都有唯一 ID
+            //（列表不串行，任务关联也只挂在这一次上）
+            id: (event.eventIdentifier ?? UUID().uuidString) + "@" + String(Int(event.startDate.timeIntervalSince1970)),
             title: event.title ?? "（无标题）",
             start: event.startDate,
             end: event.endDate,

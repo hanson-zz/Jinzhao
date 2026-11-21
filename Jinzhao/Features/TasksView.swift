@@ -18,12 +18,7 @@ struct TasksView: View {
     private var cal: Calendar { Calendar(identifier: .gregorian) }
 
     private var openTasks: [TaskItem] {
-        store.tasks.filter { !$0.isDone }.sorted { a, b in
-            if a.isImportant != b.isImportant { return a.isImportant }
-            let ad = a.dueDate ?? .distantFuture
-            let bd = b.dueDate ?? .distantFuture
-            return ad < bd
-        }
+        store.tasks.filter { !$0.isDone }.sorted(by: DataStore.byPriorityThenDue)
     }
 
     private var doneTasks: [TaskItem] {
@@ -283,15 +278,13 @@ struct TasksView: View {
                         if let folder = task.folderName {
                             CapsuleTag(text: folder)
                         }
+                        if let ev = task.linkedEventTitle {
+                            LinkedEventTag(title: ev)
+                        }
                     }
                 }
                 Spacer()
-                Button { store.toggleImportant(task) } label: {
-                    Image(systemName: task.isImportant ? "flag.fill" : "flag")
-                        .foregroundStyle(task.isImportant ? JZ.warm : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help("标为重要")
+                PriorityFlagMenu(task: task)
 
                 if !task.isDone && task.dueDate != nil && calendarSyncMode == "manual" {
                     Button {
@@ -354,7 +347,10 @@ struct TasksView: View {
         .hoverHighlight()
         .contextMenu {
             Button(task.isDone ? "标为未完成" : "完成") { store.toggleTask(task) }
-            Button(task.isImportant ? "取消重要" : "标为重要") { store.toggleImportant(task) }
+            Menu("优先级") { PriorityMenuItems(task: task) }
+            if task.linkedEventID != nil {
+                Button("取消关联日程") { store.unlinkTask(task.id) }
+            }
             if !task.isDone {
                 Button(task.isDoing ? "移回待办" : "开始做（进行中）") {
                     store.setBoardColumn(taskID: task.id, column: task.isDoing ? "todo" : "doing")
@@ -379,11 +375,11 @@ struct TasksView: View {
         return cal.date(bySettingHour: hour, minute: 0, second: 0, of: base) ?? base
     }
 
-    /// 勾选圈按优先级上色：已完成绿 / 重要红 / 已过期橙 / 普通灰
+    /// 勾选圈上色：已完成绿 / 已过期红 / 按优先级（高红 中橙 低蓝）/ 普通灰
     private func checkColor(_ task: TaskItem) -> Color {
         if task.isDone { return JZ.success }
-        if task.isImportant { return JZ.warm }
         if isOverdue(task) { return JZ.danger }
+        if task.priorityLevel != .none { return task.priorityLevel.color }
         return .secondary
     }
 

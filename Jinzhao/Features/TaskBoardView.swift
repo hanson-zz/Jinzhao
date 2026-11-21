@@ -28,10 +28,7 @@ struct TaskBoardView: View {
                 .prefix(compact ? 6 : 30).map { $0 }
         default:
             return tasks.filter { !$0.isDone && !$0.isDoing }
-                .sorted { a, b in
-                    if a.isImportant != b.isImportant { return a.isImportant }
-                    return (a.dueDate ?? .distantFuture) < (b.dueDate ?? .distantFuture)
-                }
+                .sorted(by: DataStore.byPriorityThenDue)
         }
     }
 
@@ -115,12 +112,7 @@ private struct BoardCard: View {
                     .foregroundStyle(task.isDone ? .secondary : .primary)
                     .lineLimit(3)
                 Spacer(minLength: 0)
-                Button { store.toggleImportant(task) } label: {
-                    Image(systemName: task.isImportant ? "flag.fill" : "flag")
-                        .foregroundStyle(task.isImportant ? JZ.accent : Color.secondary.opacity(0.5))
-                }
-                .buttonStyle(.plain)
-                .help(task.isImportant ? "取消重要" : "标为重要")
+                PriorityFlagMenu(task: task, size: 14)
             }
             if let due = task.dueDate {
                 Label(dueText(due), systemImage: "calendar")
@@ -146,8 +138,12 @@ private struct BoardCard: View {
                 }
                 .padding(.leading, 27)
             }
-            if let folder = task.folderName {
-                CapsuleTag(text: folder).padding(.leading, 27)
+            if task.folderName != nil || task.linkedEventTitle != nil {
+                HStack(spacing: 6) {
+                    if let folder = task.folderName { CapsuleTag(text: folder) }
+                    if let ev = task.linkedEventTitle { LinkedEventTag(title: ev) }
+                }
+                .padding(.leading, 27)
             }
         }
         .padding(14)
@@ -169,7 +165,10 @@ private struct BoardCard: View {
             Button("移到进行中") { store.setBoardColumn(taskID: task.id, column: "doing") }
             Button("移到已完成") { store.setBoardColumn(taskID: task.id, column: "done") }
             Divider()
-            Button(task.isImportant ? "取消重要" : "标为重要") { store.toggleImportant(task) }
+            Menu("优先级") { PriorityMenuItems(task: task) }
+            if task.linkedEventID != nil {
+                Button("取消关联日程") { store.unlinkTask(task.id) }
+            }
             Button("删除任务", role: .destructive) { store.deleteTask(task) }
         }
     }

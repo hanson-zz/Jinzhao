@@ -22,7 +22,15 @@ final class DataStore: ObservableObject {
         fileURL = dir.appendingPathComponent("data.json")
         habitDay = DataStore.todayKey()
         load()
+        // 修 bug：App 一直开着跨过零点，习惯进度不会清零，第二天点一下会被算成「今天已完成」
+        dayObserver = NotificationCenter.default.addObserver(
+            forName: .NSCalendarDayChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.rolloverIfNeeded() }
+        }
     }
+
+    private var dayObserver: NSObjectProtocol?
 
     // MARK: - 持久化
 
@@ -51,17 +59,22 @@ final class DataStore: ObservableObject {
         habitDay = p.habitDay
         notes = p.notes ?? []
         isLoading = false
-        // 跨天：今日进度清零；连续天数校验（最后完成日既不是今天也不是昨天 → 断签归零）
+        rolloverIfNeeded()
+    }
+
+    /// 跨天：今日进度清零；连续天数校验（最后完成日既不是今天也不是昨天 → 断签归零）。
+    /// 启动时调用一次；App 开着过了零点时由 NSCalendarDayChanged 再调用。
+    func rolloverIfNeeded() {
         if habitDay != DataStore.todayKey() {
             let today = DataStore.todayKey()
             let yesterday = DataStore.dayKey(offsetDays: -1)
+            habitDay = today   // 先改日期，下面改 habits 触发保存时写进去的就是新日期
             for i in habits.indices {
                 habits[i].todayProgress = 0
                 if let last = habits[i].lastDoneDay, last != today, last != yesterday {
                     habits[i].streakDays = 0
                 }
             }
-            habitDay = today
         }
     }
 
@@ -87,10 +100,12 @@ final class DataStore: ObservableObject {
 
     // MARK: - 任务操作
 
-    func addTask(title: String, dueDate: Date? = nil, folderName: String? = nil) {
+    func addTask(title: String, dueDate: Date? = nil, folderName: String? = nil, priority: TaskPriority = .none) {
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
-        tasks.append(TaskItem(title: t, dueDate: dueDate, folderName: folderName))
+        var item = TaskItem(title: t, dueDate: dueDate, folderName: folderName)
+        if priority != .none { item.priority = priority.rawValue; item.isImportant = priority == .high }
+        tasks.append(item)
     }
 
     /// 仅在 EventKit 保存成功之后记录关联 ID。本地任务不会因为日历写入失败而改变。
@@ -106,9 +121,56 @@ final class DataStore: ObservableObject {
         if tasks[i].isDone { tasks[i].boardStatus = nil }
     }
 
+    /// 「重要」= 高优先级；切换时两者保持一致
     func toggleImportant(_ task: TaskItem) {
-        guard let i = tasks.firstIndex(where: { $0.id == task.id }) else { return }
-        tasks[i].isImportant.toggle()
+        setPriority(task.id, task.priorityLevel == .high ? .none : .high)
+    }
+
+    func setPriority(_ id: UUID, _ p: TaskPriority) {
+        updateTask(id) { t in
+            t.priority = p.rawValue
+            t.isImportant = p == .high
+        }
+    }
+
+    // MARK: - 任务 ↔ 日程关联
+
+    func tasks(linkedTo eventID: String) -> [TaskItem] {
+        tasks.filter { $0.linkedEventID == eventID }
+            .sorted { a, b in
+                if a.isDone != b.isDone { return !a.isDone }
+                return a.priorityLevel.rawValue > b.priorityLevel.rawValue
+            }
+    }
+
+    func linkTask(_ id: UUID, to event: CalendarEventItem) {
+        updateTask(id) { t in
+            t.linkedEventID = event.id
+            t.linkedEventTitle = event.title
+        }
+    }
+
+    func unlinkTask(_ id: UUID) {
+        updateTask(id) { t in
+            t.linkedEventID = nil
+            t.linkedEventTitle = nil
+        }
+    }
+
+    /// 在日程里直接新建任务：默认截止在日程开始时间
+    func addTask(title: String, linkedTo event: CalendarEventItem) {
+        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        var item = TaskItem(title: t, dueDate: event.isAllDay ? nil : event.start)
+        item.linkedEventID = event.id
+        item.linkedEventTitle = event.title
+        tasks.append(item)
+    }
+
+    /// 统一排序：未完成在前，优先级高在前，截止早在前
+    nonisolated static func byPriorityThenDue(_ a: TaskItem, _ b: TaskItem) -> Bool {
+        if a.priorityLevel != b.priorityLevel { return a.priorityLevel.rawValue > b.priorityLevel.rawValue }
+        return (a.dueDate ?? .distantFuture) < (b.dueDate ?? .distantFuture)
     }
 
     func deleteTask(_ task: TaskItem) {
@@ -132,6 +194,7 @@ final class DataStore: ObservableObject {
     /// 点一下进度 +1（喝水这类计数习惯）；已满则回到 0，方便纠正。
     /// 完成瞬间更新连续天数：昨天完成了则 +1，否则从 1 重新开始；撤销完成则回退。
     func advanceHabit(_ habit: HabitItem) {
+        rolloverIfNeeded()   // 兜底：睡眠唤醒等情况可能错过跨天通知
         guard let i = habits.firstIndex(where: { $0.id == habit.id }) else { return }
         let today = DataStore.todayKey()
         let yesterday = DataStore.dayKey(offsetDays: -1)
@@ -221,8 +284,7 @@ final class DataStore: ObservableObject {
 
     func unschedule(taskID: UUID) {
         updateTask(taskID) { t in
-            t.scheduledStart = nil
-            t.scheduledMinutes = nil
+            t.scheduledStart = nil   // 保留 scheduledMinutes 作为预计时长
         }
     }
 

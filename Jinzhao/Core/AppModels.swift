@@ -25,8 +25,14 @@ struct TaskItem: Identifiable, Codable, Equatable {
     var boardStatus: String? = nil
     /// 来自哪篇笔记（笔记里的待办转任务时记录）
     var sourceNoteID: UUID? = nil
+    /// 优先级：0 无 / 1 低 / 2 中 / 3 高。旧数据为 nil 时按 isImportant 推断（重要 = 高）。
+    var priority: Int? = nil
+    /// 关联的苹果日历日程（eventIdentifier）与标题快照；日程没加载出来时也能显示名字
+    var linkedEventID: String? = nil
+    var linkedEventTitle: String? = nil
 
     var isDoing: Bool { !isDone && boardStatus == "doing" }
+    var priorityLevel: TaskPriority { TaskPriority(rawValue: priority ?? (isImportant ? 3 : 0)) ?? .none }
     var scheduledEnd: Date? {
         guard let s = scheduledStart else { return nil }
         return s.addingTimeInterval(Double(scheduledMinutes ?? 30) * 60)
@@ -36,6 +42,27 @@ struct TaskItem: Identifiable, Codable, Equatable {
         var id = UUID()
         var title: String
         var isDone: Bool = false
+    }
+}
+
+enum TaskPriority: Int, CaseIterable, Identifiable {
+    case none = 0, low = 1, medium = 2, high = 3
+    var id: Int { rawValue }
+    var label: String {
+        switch self {
+        case .none: return "无优先级"
+        case .low: return "低优先级"
+        case .medium: return "中优先级"
+        case .high: return "高优先级"
+        }
+    }
+    var short: String {
+        switch self {
+        case .none: return "无"
+        case .low: return "低"
+        case .medium: return "中"
+        case .high: return "高"
+        }
     }
 }
 

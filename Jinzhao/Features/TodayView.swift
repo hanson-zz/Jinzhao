@@ -141,7 +141,7 @@ struct TodayView: View {
                         .font(.jzCaption).foregroundStyle(.secondary)
                 }
             }
-            let dayEvents = calendar.events.filter { isToday($0.start) }
+            let dayEvents = calendar.events(on: date)
             if !dayEvents.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "calendar").foregroundStyle(.secondary)
@@ -172,7 +172,7 @@ struct TodayView: View {
 
     /// 轻量状态栏而非三块灰色统计卡，避免在空数据时堆叠空容器。
     private var dailyOverview: some View {
-        let events = calendar.events.filter { isToday($0.start) }.count
+        let events = calendar.events(on: date).count
         let unfinished = store.tasks.filter { !$0.isDone }.count
         let checked = store.habits.filter { $0.isComplete }.count
         return HStack(spacing: 18) {
@@ -363,7 +363,7 @@ struct TodayView: View {
 
     private var todayList: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("今天 日程与任务 · \(calendar.events.filter { isToday($0.start) }.count + displayTasks.count)")
+            Text("今天 日程与任务 · \(calendar.events(on: date).count + displayTasks.count)")
                 .font(.jzSection).padding(.bottom, 6)
             if calendar.events.filter({ isToday($0.start) }).isEmpty && displayTasks.isEmpty {
                 VStack(alignment: .leading, spacing: 14) {
@@ -397,7 +397,7 @@ struct TodayView: View {
                 .padding(.vertical, 8)
             }
             // 无分隔线（定版规范），靠行距与 hover 高亮区分
-            ForEach(calendar.events.filter { isToday($0.start) }) { event in
+            ForEach(calendar.events(on: date)) { event in
                 eventRow(event)
             }
             ForEach(displayTasks) { task in
@@ -482,11 +482,11 @@ struct TodayView: View {
         .hoverHighlight()
     }
 
-    /// 勾选圈按优先级上色：已完成绿 / 重要红 / 已过期橙 / 普通灰
+    /// 勾选圈上色：已完成绿 / 已过期红 / 按优先级 / 普通灰
     private func checkColor(_ t: TaskItem) -> Color {
         if t.isDone { return JZ.success }
-        if t.isImportant { return JZ.warm }
         if let due = t.dueDate, due < Date() { return JZ.danger }
+        if t.priorityLevel != .none { return t.priorityLevel.color }
         return .secondary
     }
 
@@ -509,8 +509,11 @@ struct TodayView: View {
                     .strikethrough(t.isDone)
                     .foregroundStyle(t.isDone ? .secondary : .primary)
                 HStack(spacing: 6) {
-                    if t.isImportant {
-                        Label("重要", systemImage: "flag.fill").font(.jzCaption).foregroundStyle(JZ.danger)
+                    if t.priorityLevel != .none {
+                        Label(t.priorityLevel.label, systemImage: "flag.fill").font(.jzCaption).foregroundStyle(t.priorityLevel.color)
+                    }
+                    if let ev = t.linkedEventTitle {
+                        Label(ev, systemImage: "calendar").font(.jzCaption).foregroundStyle(.secondary).lineLimit(1)
                     }
                     if !t.subtasks.isEmpty {
                         Label("子任务 \(t.subtasks.filter { $0.isDone }.count)/\(t.subtasks.count)", systemImage: "checklist")

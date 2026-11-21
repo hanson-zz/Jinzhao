@@ -155,18 +155,40 @@ private struct AllDayRow: View {
         }
         return VStack(alignment: .leading, spacing: 2) {
             ForEach(allDay) { e in
-                Text(e.title)
-                    .font(.system(size: 11, weight: .medium))
-                    .lineLimit(1)
-                    .padding(.horizontal, 5).padding(.vertical, 2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(TimeGridView.color(e.colorName).opacity(0.2), in: RoundedRectangle(cornerRadius: 5))
+                AllDayEventChip(event: e)
             }
             ForEach(due) { t in
                 TaskChip(task: t)
             }
         }
         .padding(.horizontal, 2)
+    }
+}
+
+/// 全天日程小条：点开看关联任务
+private struct AllDayEventChip: View {
+    let event: CalendarEventItem
+    @EnvironmentObject private var store: DataStore
+    @State private var showDetail = false
+
+    var body: some View {
+        let linked = store.tasks(linkedTo: event.id)
+        HStack(spacing: 4) {
+            Text(event.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+            Spacer(minLength: 0)
+            if !linked.isEmpty {
+                Text("\(linked.filter { $0.isDone }.count)/\(linked.count)")
+                    .font(.system(size: 9, weight: .semibold)).monospacedDigit().foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 5).padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TimeGridView.color(event.colorName).opacity(0.2), in: RoundedRectangle(cornerRadius: 5))
+        .contentShape(Rectangle())
+        .onTapGesture { showDetail = true }
+        .popover(isPresented: $showDetail, arrowEdge: .bottom) {
+            EventTasksPopover(event: event).environmentObject(store)
+        }
     }
 }
 
@@ -180,7 +202,7 @@ struct TaskChip: View {
             Button { store.toggleTask(task) } label: {
                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 11))
-                    .foregroundStyle(task.isImportant ? JZ.warm : Color.secondary)
+                    .foregroundStyle(task.priorityLevel == .none ? Color.secondary : task.priorityLevel.color)
             }
             .buttonStyle(.plain)
             Text(task.title).font(.system(size: 11)).lineLimit(1)
@@ -228,9 +250,12 @@ private struct DayColumn: View {
                 let entries = layout()
                 ForEach(entries) { entry in
                     let colWidth = geo.size.width / CGFloat(max(entry.columns, 1))
+                    let w = max(colWidth - 3, 10)
+                    let h = max(height(entry), 18)
+                    // 用 position 而不是 offset：浮层（关联任务）要锚在块真正的位置上
                     EntryBlock(entry: entry, hourHeight: hourHeight)
-                        .frame(width: max(colWidth - 3, 10), height: max(height(entry), 18), alignment: .topLeading)
-                        .offset(x: colWidth * CGFloat(entry.column) + 1, y: y(entry.start))
+                        .frame(width: w, height: h, alignment: .topLeading)
+                        .position(x: colWidth * CGFloat(entry.column) + 1 + w / 2, y: y(entry.start) + h / 2)
                 }
                 if cal.isDateInToday(day) {
                     nowLine(width: geo.size.width)
@@ -336,6 +361,7 @@ private struct EntryBlock: View {
     let hourHeight: CGFloat
     @EnvironmentObject private var store: DataStore
     @Environment(\.openURL) private var openURL
+    @State private var showDetail = false
 
     var body: some View {
         switch entry.kind {
@@ -354,6 +380,12 @@ private struct EntryBlock: View {
             if let p = e.meetingProvider, e.meetingURL != nil {
                 Text(p).font(.system(size: 10, weight: .medium)).foregroundStyle(c)
             }
+            let linked = store.tasks(linkedTo: e.id)
+            if !linked.isEmpty {
+                Label("\(linked.filter { $0.isDone }.count)/\(linked.count)", systemImage: "checklist")
+                    .font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(.primary.opacity(0.7))
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 7).padding(.vertical, 4)
@@ -363,12 +395,18 @@ private struct EntryBlock: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(c.opacity(0.35), lineWidth: 0.8)
         }
         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture { showDetail = true }
+        .popover(isPresented: $showDetail, arrowEdge: .trailing) {
+            EventTasksPopover(event: e).environmentObject(store)
+        }
         .contextMenu {
             if let url = e.meetingURL {
                 Button("加入\(e.meetingProvider ?? "")会议") { openURL(url) }
             }
+            Button("关联任务…") { showDetail = true }
         }
-        .help(e.title)
+        .help("\(e.title) · 点一下看关联任务")
     }
 
     private func taskBlock(_ t: TaskItem) -> some View {
@@ -412,6 +450,7 @@ private struct EntryBlock: View {
                 }
             }
             Button(t.isDone ? "标为未完成" : "完成") { store.toggleTask(t) }
+            Menu("优先级") { PriorityMenuItems(task: t) }
             Divider()
             Button("移出日程") { store.unschedule(taskID: t.id) }
         }
@@ -425,10 +464,7 @@ struct UnscheduledTray: View {
 
     private var items: [TaskItem] {
         store.tasks.filter { !$0.isDone && $0.scheduledStart == nil }
-            .sorted { a, b in
-                if a.isImportant != b.isImportant { return a.isImportant }
-                return (a.dueDate ?? .distantFuture) < (b.dueDate ?? .distantFuture)
-            }
+            .sorted(by: DataStore.byPriorityThenDue)
     }
 
     var body: some View {
@@ -485,7 +521,12 @@ private struct TrayCard: View {
             .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: 2) {
                 Text(task.title).font(.system(size: 13, weight: .semibold)).lineLimit(2)
-                Text(estimate).font(.system(size: 11)).foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    if task.priorityLevel != .none {
+                        Image(systemName: "flag.fill").font(.system(size: 9)).foregroundStyle(task.priorityLevel.color)
+                    }
+                    Text(estimate).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 0)
             Image(systemName: "line.3.horizontal").font(.system(size: 11)).foregroundStyle(.tertiary)
@@ -506,7 +547,7 @@ private struct TrayCard: View {
                     }
                 }
             }
-            Button(task.isImportant ? "取消重要" : "标为重要") { store.toggleImportant(task) }
+            Menu("优先级") { PriorityMenuItems(task: task) }
         }
         .help("拖到左边的时间格里，排成时间块")
     }

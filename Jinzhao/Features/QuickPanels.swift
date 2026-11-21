@@ -63,7 +63,7 @@ struct QuickLauncherView: View {
             if !trimmed.isEmpty {
                 VStack(spacing: 2) {
                     actionRow(symbol: "checklist", title: "新建任务：\(parsed.title)",
-                              detail: parsed.start.map { "截止 " + Self.when($0) }, hint: "↩", action: createTask)
+                              detail: [parsed.start.map { "截止 " + Self.when($0) }, parsed.priority == .none ? nil : parsed.priority.label].compactMap { $0 }.joined(separator: " · ").nilIfEmpty, hint: "↩", action: createTask)
                     actionRow(symbol: "calendar.badge.plus", title: "新建日程：\(parsed.title)",
                               detail: eventDetail, hint: "⌘↩", action: createEvent)
                         .keyboardShortcut(.return, modifiers: .command)
@@ -117,7 +117,7 @@ struct QuickLauncherView: View {
                                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
                                 Text(task.title).lineLimit(1)
                                 Spacer()
-                                if task.isImportant { Image(systemName: "flag.fill").foregroundStyle(.orange) }
+                                if task.priorityLevel != .none { Image(systemName: "flag.fill").foregroundStyle(task.priorityLevel.color) }
                             }
                             .padding(.horizontal, 10).padding(.vertical, 6)
                             .contentShape(Rectangle())
@@ -184,7 +184,7 @@ struct QuickLauncherView: View {
 
     private func createTask() {
         guard !trimmed.isEmpty else { return }
-        store.addTask(title: parsed.title, dueDate: parsed.start)
+        store.addTask(title: parsed.title, dueDate: parsed.start, priority: parsed.priority)
         finish()
     }
 
@@ -244,6 +244,7 @@ struct QuickPhrase {
     var title: String
     var start: Date?
     var end: Date?
+    var priority: TaskPriority = .none
 
     func eventRange(now: Date = Date()) -> (Date, Date) {
         let s = start ?? DataStore.snap(now.addingTimeInterval(3600), minutes: 30)
@@ -291,10 +292,26 @@ struct QuickPhrase {
             end = cal.date(bySettingHour: min(h, 23), minute: endMinute, second: 0, of: s)
         }
         var title = base.title
+        // 优先级：!!! 高 / !! 中，或直接写「高/中/低优先级」（单个 ! 不算，免得误伤感叹句）
+        var priority: TaskPriority = .none
+        let prioRules: [(String, TaskPriority)] = [
+            (#"\s*[!！]{3,}\s*"#, .high), (#"\s*高优先级\s*"#, .high),
+            (#"\s*[!！]{2}\s*"#, .medium), (#"\s*中优先级\s*"#, .medium),
+            (#"\s*低优先级\s*"#, .low)
+        ]
+        for (pattern, p) in prioRules {
+            if let re = try? NSRegularExpression(pattern: pattern),
+               let m = re.firstMatch(in: title, range: NSRange(title.startIndex..., in: title)),
+               let r = Range(m.range, in: title) {
+                priority = p
+                title.replaceSubrange(r, with: " ")
+                break
+            }
+        }
         for word in ["腾讯会议", "飞书会议"] { title = title.replacingOccurrences(of: word, with: "") }
         title = title.trimmingCharacters(in: .whitespaces)
         if title.isEmpty { title = raw }
-        return QuickPhrase(title: title, start: start, end: end)
+        return QuickPhrase(title: title, start: start, end: end, priority: priority)
     }
 
     private static func chinese(_ s: String) -> Int? {
@@ -482,4 +499,8 @@ struct TodayFloatingView: View {
         store.addTask(title: draft)
         draft = ""
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
