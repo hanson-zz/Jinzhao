@@ -13,6 +13,7 @@ struct TasksView: View {
     @State private var expanded: Set<UUID> = []
     @State private var subtaskDrafts: [UUID: String] = [:]
     @FocusState private var newTitleFocused: Bool
+    @AppStorage("jinzhao.tasksLayout") private var layout = "list"
 
     private var cal: Calendar { Calendar(identifier: .gregorian) }
 
@@ -32,7 +33,16 @@ struct TasksView: View {
 
     var body: some View {
         SolidCard {
-          if store.tasks.isEmpty {
+          if layout == "board" && !store.tasks.isEmpty {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    addBar
+                    TaskBoardView(tasks: store.tasks)
+                }
+                .padding(20)
+            }
+          } else if store.tasks.isEmpty {
             // 空状态：不进滚动区，固定在中栏上三分之一处
             VStack(alignment: .leading, spacing: 16) {
                 header
@@ -83,6 +93,13 @@ struct TasksView: View {
             Text("\(openTasks.count) 项待办")
                 .font(.callout).foregroundStyle(.secondary)
             Spacer()
+            Picker("布局", selection: $layout) {
+                Label("列表", systemImage: "list.bullet").tag("list")
+                Label("看板", systemImage: "square.grid.3x1.below.line.grid.1x2").tag("board")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 150)
         }
     }
 
@@ -252,6 +269,13 @@ struct TasksView: View {
                                 .font(.caption)
                                 .foregroundStyle(isOverdue(task) ? JZ.danger : .secondary)
                         }
+                        if let s = task.scheduledStart {
+                            Label("排期 \(scheduleText(s))", systemImage: "calendar.day.timeline.left")
+                                .font(.caption).foregroundStyle(JZ.accent)
+                        }
+                        if task.isDoing {
+                            Text("进行中").font(.caption.weight(.semibold)).foregroundStyle(JZ.accent)
+                        }
                         if !task.subtasks.isEmpty {
                             Text("子任务 \(task.subtasks.filter { $0.isDone }.count)/\(task.subtasks.count)")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -329,8 +353,30 @@ struct TasksView: View {
         .padding(.horizontal, 6)
         .hoverHighlight()
         .contextMenu {
+            Button(task.isDone ? "标为未完成" : "完成") { store.toggleTask(task) }
+            Button(task.isImportant ? "取消重要" : "标为重要") { store.toggleImportant(task) }
+            if !task.isDone {
+                Button(task.isDoing ? "移回待办" : "开始做（进行中）") {
+                    store.setBoardColumn(taskID: task.id, column: task.isDoing ? "todo" : "doing")
+                }
+                Menu("排进日程") {
+                    Button("今天 现在") { store.schedule(taskID: task.id, at: Date()) }
+                    Button("今天 下午 2 点") { store.schedule(taskID: task.id, at: todayAt(14)) }
+                    Button("明天 上午 9 点") { store.schedule(taskID: task.id, at: todayAt(9, dayOffset: 1)) }
+                    if task.scheduledStart != nil {
+                        Divider()
+                        Button("移出日程") { store.unschedule(taskID: task.id) }
+                    }
+                }
+            }
+            Divider()
             Button("删除任务", role: .destructive) { store.deleteTask(task) }
         }
+    }
+
+    private func todayAt(_ hour: Int, dayOffset: Int = 0) -> Date {
+        let base = cal.date(byAdding: .day, value: dayOffset, to: cal.startOfDay(for: Date())) ?? Date()
+        return cal.date(bySettingHour: hour, minute: 0, second: 0, of: base) ?? base
     }
 
     /// 勾选圈按优先级上色：已完成绿 / 重要红 / 已过期橙 / 普通灰
@@ -344,6 +390,12 @@ struct TasksView: View {
     private func isOverdue(_ task: TaskItem) -> Bool {
         guard let due = task.dueDate, !task.isDone else { return false }
         return due < Date()
+    }
+
+    private func scheduleText(_ d: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = cal.isDateInToday(d) ? "今天 HH:mm" : (cal.isDateInTomorrow(d) ? "明天 HH:mm" : "M月d日 HH:mm")
+        return f.string(from: d)
     }
 
     private func dueText(_ due: Date) -> String {

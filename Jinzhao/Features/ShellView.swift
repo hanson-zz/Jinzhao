@@ -11,6 +11,7 @@ struct ShellView: View {
     @State private var showSettings = false
     @Environment(\.openWindow) private var openWindow
     @FocusState private var searchFocused: Bool
+    @EnvironmentObject private var store: DataStore
 
     enum Section: String, CaseIterable {
         case today = "今天"
@@ -51,7 +52,10 @@ struct ShellView: View {
         .padding(10) // 统一较窄的分栏间距，避免中栏像独立浮窗
         .background(WindowBackdrop())
         .animation(.easeInOut(duration: 0.18), value: selection)
-        .onAppear { JZGlobalHotkey.shared.install() }
+        .onAppear {
+            JZGlobalHotkey.shared.install()
+            AppearanceManager.shared.start()
+        }
         .toolbar {
             // 搜索框挪到工具栏（原在侧边栏里）
             ToolbarItem(placement: .navigation) {
@@ -61,7 +65,12 @@ struct ShellView: View {
                         .textFieldStyle(.plain)
                         .focused($searchFocused)
                         .frame(width: 170)
-                        .onSubmit { selection = .tasks }
+                        .onSubmit {
+                            // 工具栏搜索：回车打开快速启动器并带上关键词
+                            UserDefaults.standard.set(searchText, forKey: "jinzhao.launcherSeed")
+                            searchText = ""
+                            openWindow(id: "quick-launcher")
+                        }
                     Text("⌘K").font(.jzCaption).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 5)
@@ -78,9 +87,10 @@ struct ShellView: View {
             // 新建按钮挪到工具栏：玻璃样式，不抢日期条「今天」的蓝色焦点
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button("新建任务") { selection = .tasks }
-                    Button("新建日程") { selection = .calendar }
-                    Button("去收件箱随手记") { selection = .today }
+                    Button("新建任务") { NotificationCenter.default.post(name: .jinzhaoNewTask, object: nil) }
+                    Button("新建日程") { NotificationCenter.default.post(name: .jinzhaoNewEvent, object: nil) }
+                    Button("新建笔记") { NotificationCenter.default.post(name: .jinzhaoNewNote, object: nil) }
+                    Button("随手记到收件箱") { selection = .inbox }
                 } label: {
                     Label("新建", systemImage: "plus")
                 }
@@ -104,6 +114,16 @@ struct ShellView: View {
                 NotificationCenter.default.post(name: .jinzhaoOpenNewEvent, object: nil)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .jinzhaoNewNote)) { _ in
+            let id = store.addNote()
+            selection = .notes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                NotificationCenter.default.post(name: .jinzhaoOpenNote, object: id)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .jinzhaoOpenNote)) { _ in
+            if selection != .notes { selection = .notes }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .jinzhaoQuickLaunch)) { _ in
             openWindow(id: "quick-launcher")
         }
@@ -126,8 +146,12 @@ struct ShellView: View {
             CalendarView()
         case .tasks:
             TasksView()
-        default:
-            PlaceholderView(section: selection)
+        case .notes:
+            NotesView()
+        case .habits:
+            HabitsView()
+        case .inbox:
+            InboxPageView(selection: $selection)
         }
     }
 }
@@ -215,23 +239,52 @@ struct AboutView: View {
 struct SettingsView: View {
     @AppStorage(AppearanceSetting.storageKey) private var appearanceRaw: String = AppearanceSetting.system.rawValue
     @AppStorage("jinzhao.taskCalendarSyncMode") private var taskCalendarSyncMode = "manual"
+    @AppStorage(LanguageSetting.storageKey) private var languageRaw = LanguageSetting.system.rawValue
+    @State private var showRestart = false
     @EnvironmentObject private var calendar: CalendarService
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: JZ.spaceM) {
             Text("设置").font(.jzTitle)
+            Text("通用").font(.jzSection)
             HStack {
                 Text("外观").font(.jzBody)
                 Spacer()
                 Picker("", selection: $appearanceRaw) {
                     ForEach(AppearanceSetting.allCases, id: \.self) { s in
-                        Text(s.rawValue).tag(s.rawValue)
+                        Text(LocalizedStringKey(s.rawValue)).tag(s.rawValue)
                     }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .frame(width: 250)
+            }
+            Text("图标会跟着外观一起切换：浅色是睁眼的朝朝，深色是闭眼的朝朝。")
+                .font(.jzCaption).foregroundStyle(.secondary)
+            HStack {
+                Text("语言").font(.jzBody)
+                Spacer()
+                Picker("", selection: Binding(get: { languageRaw }, set: { v in
+                    guard v != languageRaw else { return }
+                    languageRaw = v
+                    (LanguageSetting(rawValue: v) ?? .system).applyForNextLaunch()
+                    showRestart = true
+                })) {
+                    ForEach(LanguageSetting.allCases, id: \.self) { l in
+                        Text(LocalizedStringKey(l.rawValue)).tag(l.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 250)
+            }
+            if showRestart {
+                HStack {
+                    Text("重启今朝后生效").font(.jzCaption).foregroundStyle(JZ.warm)
+                    Spacer()
+                    Button("立即重启") { LanguageSetting.relaunch() }.glassButton().controlSize(.small)
+                }
             }
             Divider()
             Text("任务同步").font(.jzSection)

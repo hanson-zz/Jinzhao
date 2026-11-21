@@ -18,6 +18,19 @@ struct TaskItem: Identifiable, Codable, Equatable {
     var lunarRepeat: Bool = false
     /// 已手动同步的苹果日历事件 ID；不随任务完成状态变化而删除。
     var calendarEventID: String? = nil
+    /// 周视图时间块：开始时间与时长（分钟）。为空表示未排进日程。旧数据无此字段时为 nil。
+    var scheduledStart: Date? = nil
+    var scheduledMinutes: Int? = nil
+    /// 看板状态："doing" 为进行中；nil / 其他为待办；完成以 isDone 为准。
+    var boardStatus: String? = nil
+    /// 来自哪篇笔记（笔记里的待办转任务时记录）
+    var sourceNoteID: UUID? = nil
+
+    var isDoing: Bool { !isDone && boardStatus == "doing" }
+    var scheduledEnd: Date? {
+        guard let s = scheduledStart else { return nil }
+        return s.addingTimeInterval(Double(scheduledMinutes ?? 30) * 60)
+    }
 
     struct Subtask: Identifiable, Codable, Equatable {
         var id = UUID()
@@ -48,6 +61,8 @@ struct HabitItem: Identifiable, Codable, Equatable {
     var scheduledTime: String? = nil    // "23:30" 早睡这类时间型习惯
     /// 最近一次完成目标的日期（yyyy-MM-dd），连续天数计算用；旧数据无此字段时为 nil
     var lastDoneDay: String? = nil
+    /// 完成目标的日期列表（yyyy-MM-dd），习惯统计用；旧数据无此字段时为 nil
+    var doneDays: [String]? = nil
 
     var isComplete: Bool { todayProgress >= targetPerDay }
     var fraction: Double { targetPerDay > 0 ? min(todayProgress / targetPerDay, 1) : 0 }
@@ -58,6 +73,51 @@ struct InboxItem: Identifiable, Codable, Equatable {
     var text: String
     var createdAt: Date
     var lunarNote: String? = nil        // 如「九月初九 · 10月18日 周日」
+}
+
+/// 笔记：块编辑（段落 / 标题 / 列表 / 待办），本地 JSON 落盘
+struct NoteItem: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var title: String
+    var blocks: [NoteBlock]
+    var createdAt: Date
+    var updatedAt: Date
+    var isPinned: Bool? = nil
+
+    var plainText: String { blocks.map { $0.text }.joined(separator: "\n") }
+    var preview: String {
+        let t = blocks.map { $0.text.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty } ?? ""
+        return t.isEmpty ? "空白笔记" : t
+    }
+    var openTodoCount: Int { blocks.filter { $0.kind == .todo && !($0.isDone ?? false) }.count }
+}
+
+struct NoteBlock: Identifiable, Codable, Equatable {
+    enum Kind: String, Codable, CaseIterable {
+        case text, heading, bullet, todo
+        var label: String {
+            switch self {
+            case .text: return "正文"
+            case .heading: return "标题"
+            case .bullet: return "列表"
+            case .todo: return "待办"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .text: return "text.alignleft"
+            case .heading: return "textformat.size"
+            case .bullet: return "list.bullet"
+            case .todo: return "checkmark.square"
+            }
+        }
+    }
+    var id = UUID()
+    var kind: Kind = .text
+    var text: String = ""
+    var isDone: Bool? = nil
+    /// 转成任务后记下任务 ID，避免重复转
+    var linkedTaskID: UUID? = nil
 }
 
 // 演示数据（DemoStore）已于第三片移除，真实数据见 DataStore（本地 JSON 落盘）。

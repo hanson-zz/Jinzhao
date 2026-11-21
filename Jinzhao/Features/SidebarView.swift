@@ -115,7 +115,7 @@ struct SidebarView: View {
                     .frame(width: 26, height: 26)
                     .background(selected ? Color.white.opacity(0.25) : tile.opacity(0.09),
                                 in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                Text(section.rawValue)
+                Text(LocalizedStringKey(section.rawValue))
                     .font(.jzBody.weight(selected ? .semibold : .regular))
                     .foregroundStyle(selected ? .white : .primary)
                 Spacer()
